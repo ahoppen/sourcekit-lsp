@@ -5,6 +5,18 @@ import PackageDescription
 let package = Package(
     name: "SourceKitLSP",
     products: [
+      .executable(
+        name: "sourcekit-lsp",
+        targets: ["sourcekit-lsp"]
+      ),
+      .library(
+        name: "swift-lsp-bindings",
+        type: .static,
+        targets: [
+          "LanguageServerProtocol",
+          "LanguageServerProtocolJSONRPC",
+        ]
+      )
     ],
     dependencies: [
       // See 'Dependencies' below.
