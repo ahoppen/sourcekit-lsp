@@ -478,6 +478,11 @@ extension SwiftLanguageServer {
         return
       }
 
+      if let supportedFormats = self.clientCapabilities.textDocument?.hover?.contentFormat, supportedFormats.contains(.appleXML), let doc = cursorInfo.documentationXML {
+        req.reply(HoverResponse(contents: .markupContent(MarkupContent(kind: .appleXML, value: doc)), range: nil))
+        return
+      }
+
       /// Prepend backslash to `*` and `_`, to prevent them
       /// from being interpreted as markdown.
       func escapeNameMarkdown(_ str: String) -> String {

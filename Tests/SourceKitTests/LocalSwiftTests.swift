@@ -809,6 +809,57 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
+  func testHoverAppleXMLFormat() {
+    connection = TestSourceKitServer()
+    sk = connection.client
+    _ = try! sk.sendSync(InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(
+          workspace: nil,
+          textDocument: TextDocumentClientCapabilities(
+            hover: TextDocumentClientCapabilities.Hover(contentFormat: [.appleXML, .markdown])
+        )),
+        trace: .off,
+        workspaceFolders: nil))
+
+    workspace = connection.server!.workspace!
+
+    let url = URL(fileURLWithPath: "/a.swift")
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
+      language: .swift,
+      version: 1,
+      text: """
+      /// this is **bold** documentation
+      func test(_ a: Int, _ b: Int) { }
+      /// this is *italic* documentation
+      func *%*(lhs: String, rhs: String) { }
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 1, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .appleXML)
+        XCTAssertEqual(content.value, """
+          <Function file="/a.swift" line="2" column="6"><Name>test(_:_:)</Name><USR>s:1a4testyySi_SitF</USR><Declaration>func test(_ a: Int, _ b: Int)</Declaration><CommentParts><Abstract><Para>this is <bold>bold</bold> documentation</Para></Abstract></CommentParts></Function>
+          """)
+      }
+    }
+  }
+
   func testDocumentSymbolHighlight() {
     let url = URL(fileURLWithPath: "/a.swift")
     let uri = DocumentURI(url)

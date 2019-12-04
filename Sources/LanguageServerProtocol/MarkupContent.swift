@@ -22,6 +22,9 @@ public struct MarkupKind: RawRepresentable, Codable, Hashable {
 
   public static let plaintext: MarkupKind = MarkupKind(rawValue: "plaintext")
   public static let markdown: MarkupKind = MarkupKind(rawValue: "markdown")
+
+  /// **(LSP-Extension)** Markup kind for Apple's XML structured documentation
+  public static let appleXML: MarkupKind = MarkupKind(rawValue: "appleXML")
 }
 
 public struct MarkupContent: Codable, Hashable {
