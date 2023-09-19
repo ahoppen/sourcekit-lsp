@@ -274,11 +274,11 @@ public final class JSONRPCConnection {
     switch message {
     case .notification(let notification):
       messageHandlingQueue.addOperation {
-        notification._handle(self.receiveHandler!, connection: self)
+        await notification._handle(self.receiveHandler!, connection: self)
       }
     case .request(let request, id: let id):
       messageHandlingQueue.addOperation {
-        request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
+        await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
           self.sendReply(response, id: id)
         }
       }
