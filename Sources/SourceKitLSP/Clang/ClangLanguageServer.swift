@@ -247,10 +247,12 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   ///
   /// We should either handle it ourselves or forward it to the client.
   func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    if let publishDiags = params as? PublishDiagnosticsNotification {
-      self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-    } else if clientID == ObjectIdentifier(clangd) {
-      client.send(params)
+    queue.async {
+      if let publishDiags = params as? PublishDiagnosticsNotification {
+        self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+      } else if clientID == ObjectIdentifier(self.clangd) {
+        self.client.send(params)
+      }
     }
   }
 
