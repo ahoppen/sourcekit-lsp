@@ -212,10 +212,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
-    }
+    try await fulfillmentOfOrThrow([expectation])
 
     let codeAction = CodeActionRequest(
       range: Position(loc)..<Position(endLoc),
@@ -247,10 +244,7 @@ final class LocalClangTests: XCTestCase {
       command: command.command, arguments: command.arguments)
     _ = try ws.sk.sendSync(executeCommand)
 
-    let editResult = XCTWaiter.wait(for: [applyEdit], timeout: defaultTimeout)
-    if editResult != .completed {
-      fatalError("error \(editResult) waiting for applyEdit request")
-    }
+    try await fulfillmentOfOrThrow([applyEdit])
   }
 
   func testClangStdHeaderCanary() async throws {
@@ -273,10 +267,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
-    }
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testClangModules() async throws {
@@ -294,7 +285,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .objective_c)
 
-    await waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
     withExtendedLifetime(ws) {}
   }
 
@@ -312,7 +303,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     try ws.openDocument(mainLoc.url, language: .c)
-    await waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([diagnostics])
 
     let request = DocumentSemanticTokensRequest(textDocument: mainLoc.docIdentifier)
     do {
@@ -341,7 +332,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(cFileLoc.url, language: .cpp)
 
-    self.wait(for: [documentOpened], timeout: 5)
+    try await fulfillmentOfOrThrow([documentOpened], timeout: 5)
 
     // We rename Object to MyObject in the header.
     _ = try ws.sources.edit { builder in
@@ -363,6 +354,6 @@ final class LocalClangTests: XCTestCase {
 
     clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
 
-    self.wait(for: [updatedNotificationsReceived], timeout: 5)
+    try await fulfillmentOfOrThrow([updatedNotificationsReceived], timeout: 5)
   }
 }

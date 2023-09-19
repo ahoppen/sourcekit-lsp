@@ -33,3 +33,24 @@ public func assertEqual<T: Equatable>(
 ) {
   XCTAssertEqual(expression1, expression2, message(), file: file, line: line)
 }
+
+extension XCTestCase {
+  private struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
+    var description: String {
+      return "Expectation not fulfilled within timeout"
+    }
+  }
+
+  /// Wait for the given expectations to be fulfilled. If the expectations aren't 
+  /// fulfilled within `timeout`, throw an error, aborting the test execution.
+  public func fulfillmentOfOrThrow(
+    _ expectations: [XCTestExpectation],
+    timeout: TimeInterval = defaultTimeout,
+    enforceOrder enforceOrderOfFulfillment: Bool = false
+  ) async throws {
+    let started = await XCTWaiter.fulfillment(of: expectations, timeout: timeout, enforceOrder: enforceOrderOfFulfillment)
+    if started != .completed {
+      throw ExpectationNotFulfilledError()
+    }
+  }
+}

@@ -211,7 +211,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         didReceiveCorrectCompletions = true
         break
       }
-      Thread.sleep(forTimeInterval: 1)
+      try await Task.sleep(for: .seconds(1))
     }
 
     XCTAssert(didReceiveCorrectCompletions)

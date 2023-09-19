@@ -276,7 +276,7 @@ final class CodeActionTests: XCTestCase {
       semanticDiagnosticsReceived.fulfill()
     }
 
-    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([syntacticDiagnosticsReceived, semanticDiagnosticsReceived])
 
     let textDocument = TextDocumentIdentifier(def.url)
     let actionsRequest = CodeActionRequest(range: def.position..<def.position, context: .init(diagnostics: diags), textDocument: textDocument)
@@ -330,6 +330,6 @@ final class CodeActionTests: XCTestCase {
     }
     _ = try ws.sk.sendSync(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
-    self.wait(for: [editReceived], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([editReceived])
   }
 }

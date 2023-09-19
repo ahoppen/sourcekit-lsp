@@ -195,14 +195,10 @@ final class BuildSystemTests: XCTestCase {
 
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    guard result == .completed else {
-      XCTFail("wait for diagnostics failed with \(result)")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testSwiftDocumentUpdatedBuildSettings() async {
+  func testSwiftDocumentUpdatedBuildSettings() async throws {
     await setup()
 
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
@@ -256,14 +252,10 @@ final class BuildSystemTests: XCTestCase {
     }
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    guard result == .completed else {
-      XCTFail("wait for diagnostics failed with \(result)")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testClangdDocumentFallbackWithholdsDiagnostics() async {
+  func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
     await setup()
 
     guard haveClangd else { return }
@@ -315,14 +307,10 @@ final class BuildSystemTests: XCTestCase {
 
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    guard result == .completed else {
-      XCTFail("wait for diagnostics failed with \(result)")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async {
+  func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
     await setup()
 
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
@@ -375,14 +363,10 @@ final class BuildSystemTests: XCTestCase {
     }
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    guard result == .completed else {
-      XCTFail("wait for diagnostics failed with \(result)")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testSwiftDocumentBuildSettingsChangedFalseAlarm() async {
+  func testSwiftDocumentBuildSettingsChangedFalseAlarm() async throws {
     await setup()
 
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
@@ -419,11 +403,7 @@ final class BuildSystemTests: XCTestCase {
       expectation.fulfill()
     }
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
-    guard result == .completed else {
-      XCTFail("wait for diagnostics failed with \(result)")
-      return
-    }
+    try await fulfillmentOfOrThrow([expectation], timeout: 1)
   }
 
   func testMainFilesChanged() async throws {
@@ -444,7 +424,7 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try ws.openDocument(unique_h.fileURL!, language: .cpp)
-    wait(for: [expectation], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
 
     let use_d = self.expectation(description: "update settings to d.cpp")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -457,7 +437,7 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try ws.buildAndIndex()
-    wait(for: [use_d], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([use_d])
 
     let use_c = self.expectation(description: "update settings to c.cpp")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -478,7 +458,7 @@ final class BuildSystemTests: XCTestCase {
         """, to: ws.testLoc("c_func").url)
     }
 
-    wait(for: [use_c], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([use_c])
   }
 
   private func clangBuildSettings(for uri: DocumentURI) -> FileBuildSettings {

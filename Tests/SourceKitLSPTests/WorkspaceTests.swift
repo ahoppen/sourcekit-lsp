@@ -110,7 +110,7 @@ final class WorkspaceTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .objective_c)
 
-    await waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
 
     let otherWs = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
@@ -183,7 +183,7 @@ final class WorkspaceTests: XCTestCase {
         didReceiveCorrectWorkspaceMembership = true
         break
       }
-      Thread.sleep(forTimeInterval: 1)
+      try await Task.sleep(for: .seconds(1))
     }
 
     XCTAssert(didReceiveCorrectWorkspaceMembership)
@@ -211,7 +211,7 @@ final class WorkspaceTests: XCTestCase {
       }
     }
 
-    self.wait(for: [receivedResponse], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([receivedResponse])
   }
 
   func testChangeWorkspaceFolders() async throws {
