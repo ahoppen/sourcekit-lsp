@@ -104,22 +104,28 @@ public final class LocalConnection {
 
 extension LocalConnection: Connection {
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
-    handler?.handle(notification, from: ObjectIdentifier(self))
+    queue.async {
+      self.handler?.handle(notification, from: ObjectIdentifier(self))
+    }
   }
 
   public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
     let id = nextRequestID()
-    guard let handler = handler else {
-      queue.async { reply(.failure(.serverCancelled)) }
-      return id
-    }
 
-    precondition(state == .started)
-    handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
-      queue.async {
-        reply(result)
+    queue.async {
+      guard let handler = self.handler else {
+        reply(.failure(.serverCancelled))
+        return
+      }
+
+      precondition(self.state == .started)
+      handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
+        queue.async {
+          reply(result)
+        }
       }
     }
+
     return id
   }
 }

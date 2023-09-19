@@ -24,8 +24,23 @@ import LSPLogging
 public final class JSONRPCConnection {
 
   var receiveHandler: MessageHandler? = nil
+  
+  /// The queue on which we read the data
   let queue: DispatchQueue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
+
+  /// The queue on which we send data.
   let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
+
+  /// The queue on which all messages (notifications, requests, responses) are
+  /// handled.
+  ///
+  /// The queue is blocked until the message has been sufficiently handled to
+  /// avoid out-of-order handling of messages. For sourcekitd, this means that
+  /// a request has been sent to sourcekitd and for clangd, this means that we
+  /// have forwarded the request to clangd.
+  ///
+  /// The actual semantic handling of the message happens off this queue.
+  let messageHandlingQueue: AsyncQueue = AsyncQueue()
   let receiveIO: DispatchIO
   let sendIO: DispatchIO
   let messageRegistry: MessageRegistry
@@ -258,10 +273,14 @@ public final class JSONRPCConnection {
   func handle(_ message: JSONRPCMessage) {
     switch message {
     case .notification(let notification):
-      notification._handle(receiveHandler!, connection: self)
+      messageHandlingQueue.addOperation {
+        notification._handle(self.receiveHandler!, connection: self)
+      }
     case .request(let request, id: let id):
-      request._handle(receiveHandler!, id: id, connection: self) { (response, id) in
-        self.sendReply(response, id: id)
+      messageHandlingQueue.addOperation {
+        request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
+          self.sendReply(response, id: id)
+        }
       }
 
     case .response(let response, id: let id):
