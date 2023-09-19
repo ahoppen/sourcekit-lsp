@@ -482,7 +482,7 @@ public final class SourceKitServer {
 // MARK: - MessageHandler
 
 extension SourceKitServer: MessageHandler {
-  public func handle<N: NotificationType>(_ params: N, from clientID: ObjectIdentifier) {
+  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
     queue.async {
 
       let notification = Notification(params, clientID: clientID)
@@ -515,17 +515,18 @@ extension SourceKitServer: MessageHandler {
     }
   }
 
-  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
+  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) async {
     queue.async {
-
       let cancellationToken = CancellationToken()
       let key = RequestCancelKey(client: clientID, request: id)
 
       self.requestCancellation[key] = cancellationToken
 
       let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
-        self?.queue.async {
-            self?.requestCancellation[key] = nil
+        if let self {
+          self.queue.async {
+            self.requestCancellation[key] = nil
+          }
         }
         reply(result)
         self?._logResponse(result, id: id, method: R.method)
