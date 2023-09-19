@@ -44,11 +44,11 @@ fileprivate extension HoverResponse {
 }
 
 final class CrashRecoveryTests: XCTestCase {
-  func testSourcekitdCrashRecovery() throws {
+  func testSourcekitdCrashRecovery() async throws {
     try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     // Open the document. Wait for the semantic diagnostics to know it has been fully opened and we are not entering any data races about outstanding diagnostics when we crash sourcekitd.
@@ -88,7 +88,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash sourcekitd
 
-    let sourcekitdServer = ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: loc.docUri)!) as! SwiftLanguageServer
+    let sourcekitdServer = await ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspaceForDocument(uri: loc.docUri)!) as! SwiftLanguageServer
 
     let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
     let sourcekitdRestarted = expectation(description: "sourcekitd has been restarted (syntactic only)")
@@ -132,9 +132,9 @@ final class CrashRecoveryTests: XCTestCase {
   /// - Parameters:
   ///   - ws: The workspace for which the clangd server shall be crashed
   ///   - document: The URI of a C/C++/... document in the workspace
-  private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) {
-    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: docUri)!)!
-    
+  private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) async {
+    let clangdServer = await ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: docUri)!)!
+
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
 
@@ -155,10 +155,10 @@ final class CrashRecoveryTests: XCTestCase {
     self.wait(for: [clangdRestarted], timeout: 30)
   }
 
-  func testClangdCrashRecovery() throws {
+  func testClangdCrashRecovery() async throws {
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     try ws.openDocument(loc.url, language: .cpp)
@@ -182,7 +182,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash clangd
 
-    crashClangd(for: ws, document: loc.docUri)
+    await crashClangd(for: ws, document: loc.docUri)
 
     // Check that we have re-opened the document with the correct in-memory state
 
@@ -192,10 +192,10 @@ final class CrashRecoveryTests: XCTestCase {
     }
   }
     
-  func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
+  func testClangdCrashRecoveryReopensWithCorrectBuildSettings() async throws {
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
     
     try ws.openDocument(loc.url, language: .cpp)
@@ -213,7 +213,7 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Crash clangd
 
-    crashClangd(for: ws, document: loc.docUri)
+    await crashClangd(for: ws, document: loc.docUri)
     
     // Check that we have re-opened the document with the correct build settings
     // If we did not recover the correct build settings, document highlight would
@@ -225,10 +225,10 @@ final class CrashRecoveryTests: XCTestCase {
     }
   }
   
-  func testPreventClangdCrashLoop() throws {
+  func testPreventClangdCrashLoop() async throws {
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     try ws.openDocument(loc.url, language: .cpp)
@@ -240,8 +240,8 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Keep track of clangd crashes
     
-    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: loc.docUri)!)!
-    
+    let clangdServer = await ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: loc.docUri)!)!
+
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
     

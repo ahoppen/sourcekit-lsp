@@ -20,8 +20,8 @@ import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
 
-  func testMainFilesChanged() throws {
-    let ws = try mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
+  func testMainFilesChanged() async throws {
+    let ws = try await mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
     let indexDelegate = SourceKitIndexDelegate()
     ws.tibsWorkspace.delegate = indexDelegate
 
