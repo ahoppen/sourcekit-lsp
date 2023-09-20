@@ -22,6 +22,27 @@ public func assertNoThrow<T>(
   XCTAssertNoThrow(try expression(), message(), file: file, line: line)
 }
 
+/// Same as `XCTAssertThrows` but executes the trailing closure.
+public func assertThrowsError<T>(
+  _ expression: @autoclosure () async throws -> T,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line,
+  _ errorHandler: (_ error: Error) -> Void = { _ in }
+) async {
+  let didThrow: Bool
+  do {
+    _ = try await expression()
+    didThrow = false
+  } catch {
+    errorHandler(error)
+    didThrow = true
+  }
+  if !didThrow {
+    XCTFail("Expression was expected to throw but did not throw", file: file, line: line)
+  }
+}
+
 /// Same as `XCTAssertEqual` but doesn't take autoclosures and thus `expression1`
 /// and `expression2` can contain `await`.
 public func assertEqual<T: Equatable>(
@@ -43,6 +64,18 @@ public func assertNil<T: Equatable>(
   line: UInt = #line
 ) {
   XCTAssertNil(expression, message(), file: file, line: line)
+}
+
+
+/// Same as `XCTAssertNotNil` but doesn't take autoclosures and thus `expression`
+/// can contain `await`.
+public func assertNotNil<T: Equatable>(
+  _ expression: T?,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssertNotNil(expression, message(), file: file, line: line)
 }
 
 
