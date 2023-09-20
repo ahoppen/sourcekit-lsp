@@ -152,7 +152,7 @@ public actor SwiftPMWorkspace {
     self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
 
-    try reloadPackage()
+    try await reloadPackage()
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -189,7 +189,7 @@ extension SwiftPMWorkspace {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
   /// Must only be called on `queue` or from the initializer.
-  func reloadPackage() throws {
+  func reloadPackage() async throws {
     reloadPackageStatusCallback(.start)
     defer {
       reloadPackageStatusCallback(.end)
@@ -253,8 +253,8 @@ extension SwiftPMWorkspace {
         }
       }
     }
-    delegate.fileBuildSettingsChanged(changedFiles)
-    delegate.fileHandlingCapabilityChanged()
+    await delegate.fileBuildSettingsChanged(changedFiles)
+    await delegate.fileHandlingCapabilityChanged()
   }
 }
 
@@ -314,7 +314,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     assert(self.watchedFiles[uri] == nil, "Registered twice for change notifications of the same URI")
     guard let delegate = self.delegate else { return }
     self.watchedFiles[uri] = language
@@ -326,9 +326,9 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       log("error computing settings: \(error)")
     }
     if let settings = settings {
-      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
     } else {
-      delegate.fileBuildSettingsChanged([uri: .removedOrUnavailable])
+      await delegate.fileBuildSettingsChanged([uri: .removedOrUnavailable])
     }
   }
 
@@ -376,11 +376,11 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) {
+  public func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
-      orLog {
+      await orLog {
         // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
-        try self.reloadPackage()
+        try await self.reloadPackage()
       }
     }
   }
