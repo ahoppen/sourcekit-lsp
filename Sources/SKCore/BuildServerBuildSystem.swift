@@ -198,11 +198,7 @@ public actor BuildServerBuildSystem: MessageHandler {
 
   private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
     buildSettings[document] = settings
-    if let settings {
-      await self.delegate?.fileBuildSettingsChanged([document: .modified(settings)])
-    } else {
-      await self.delegate?.fileBuildSettingsChanged([document: .removedOrUnavailable])
-    }
+    await self.delegate?.fileBuildSettingsChanged([document])
   }
 }
 

@@ -680,7 +680,7 @@ extension SourceKitServer: BuildSystemDelegate {
 
   // FIXME: (async) Make this method non-isolated
   /// Non-async variant that executes `fileBuildSettingsChangedImpl` in a new task.
-  public nonisolated func fileBuildSettingsChanged(_ changedFiles: [DocumentURI: FileBuildSettingsChange]) {
+  public nonisolated func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     Task {
       await self.fileBuildSettingsChangedImpl(changedFiles)
     }
@@ -690,10 +690,8 @@ extension SourceKitServer: BuildSystemDelegate {
   /// This has two primary cases:
   /// - Initial settings reported for a given file, now we can fully open it
   /// - Changed settings for an already open file
-  public func fileBuildSettingsChangedImpl(
-    _ changedFiles: [DocumentURI: FileBuildSettingsChange]
-  ) async {
-    for (uri, change) in changedFiles {
+  public func fileBuildSettingsChangedImpl(_ changedFiles: Set<DocumentURI>) async {
+    for uri in changedFiles {
       // Non-ready documents should be considered open even though we haven't
       // opened it with the language service yet.
       guard self.documentManager.openDocuments.contains(uri) else { continue }
@@ -718,7 +716,7 @@ extension SourceKitServer: BuildSystemDelegate {
         }
 
         // Notify the language server so it can apply the proper arguments.
-        await service.documentUpdatedBuildSettings(uri, change: change)
+        await service.documentUpdatedBuildSettings(uri)
 
         // Catch up on any queued notifications and requests.
         let tasks = documentToPendingQueue[uri]?.queue ?? []
@@ -733,7 +731,7 @@ extension SourceKitServer: BuildSystemDelegate {
       // Case 2: changed settings for an already open file.
       log("Build settings changed for opened file \(uri)")
       if let service = workspace.documentService[uri] {
-        await service.documentUpdatedBuildSettings(uri, change: change)
+        await service.documentUpdatedBuildSettings(uri)
       }
     }
   }

@@ -181,10 +181,8 @@ extension BuildSystemManager {
 
     let newStatus = await self.cachedStatusOrRegisterForSettings(for: mainFile, language: language)
 
-    if let mainChange = newStatus.buildSettingsChange,
-       let delegate = self._delegate {
-      let change = self.convert(change: mainChange, ofMainFile: mainFile, to: uri)
-      await delegate.fileBuildSettingsChanged([uri: change])
+    if newStatus.buildSettingsChange != nil, let delegate = self._delegate {
+      await delegate.fileBuildSettingsChanged([uri])
     }
   }
 
@@ -254,7 +252,7 @@ extension BuildSystemManager {
   /// *Must be called on queue*. Update and notify our delegate for the given
   /// main file changes if they are convertable into `FileBuildSettingsChange`.
   func updateAndNotifyStatuses(changes: [DocumentURI: MainFileStatus]) async {
-    var changedWatchedFiles = [DocumentURI: FileBuildSettingsChange]()
+    var changedWatchedFiles = Set<DocumentURI>()
     for (mainFile, status) in changes {
       let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
       guard !watches.isEmpty else {
@@ -270,12 +268,11 @@ extension BuildSystemManager {
       guard prevStatus == .waiting || status.buildSettings != prevStatus?.buildSettings else {
         continue
       }
-      if let change = status.buildSettingsChange {
-        for watch in watches {
-          let newChange =
-            self.convert(change: change, ofMainFile: mainFile, to: watch.key)
-          changedWatchedFiles[watch.key] = newChange
-        }
+      guard status.buildSettingsChange != nil else {
+        continue
+      }
+      for watch in watches {
+        changedWatchedFiles.insert(watch.key)
       }
     }
 
@@ -329,23 +326,23 @@ extension BuildSystemManager {
 
 extension BuildSystemManager: BuildSystemDelegate {
 
-  public nonisolated func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) {
+  public nonisolated func fileBuildSettingsChanged(_ changes: Set<DocumentURI>) {
     Task {
       await fileBuildSettingsChangedImpl(changes)
     }
   }
 
-  public func fileBuildSettingsChangedImpl(_ changes: [DocumentURI: FileBuildSettingsChange]) async {
-    let statusChanges: [DocumentURI: MainFileStatus] =
-        changes.reduce(into: [:]) { (result, entry) in
-      let mainFile = entry.key
-      let settingsChange = entry.value
+  public func fileBuildSettingsChangedImpl(_ changes: Set<DocumentURI>) async {
+    var statusChanges: [DocumentURI: MainFileStatus] = [:]
+    for mainFile in changes {
       let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
       guard let firstWatch = watches.first else {
         // Possible notification after the file was unregistered. Ignore.
         return
       }
       let newStatus: MainFileStatus
+
+      let settingsChange = await self.settings(for: mainFile, language: firstWatch.value.language)
 
       if let newSettings = settingsChange.newSettings {
         newStatus = settingsChange.isFallback ? .fallback(newSettings) : .primary(newSettings)
@@ -361,7 +358,7 @@ extension BuildSystemManager: BuildSystemDelegate {
       } else {
         newStatus = .unsupported
       }
-      result[mainFile] = newStatus
+      statusChanges[mainFile] = newStatus
     }
     await self.updateAndNotifyStatuses(changes: statusChanges)
   }
@@ -426,7 +423,7 @@ extension BuildSystemManager: MainFilesDelegate {
   public func mainFilesChangedImpl() async {
     let origWatched = self.watchedFiles
     self.watchedFiles = [:]
-    var buildSettingsChanges = [DocumentURI: FileBuildSettingsChange]()
+    var buildSettingsChanges = Set<DocumentURI>()
 
     for (uri, state) in origWatched {
       let mainFiles = self._mainFilesProvider?.mainFilesContainingFile(uri) ?? []
@@ -441,9 +438,8 @@ extension BuildSystemManager: MainFilesDelegate {
 
         let newStatus = await self.cachedStatusOrRegisterForSettings(
             for: newMainFile, language: language)
-        if let change = newStatus.buildSettingsChange {
-          let newChange = self.convert(change: change, ofMainFile: newMainFile, to: uri)
-          buildSettingsChanges[uri] = newChange
+        if newStatus.buildSettingsChange != nil {
+          buildSettingsChanges.insert(uri)
         }
       }
     }
