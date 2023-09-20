@@ -399,7 +399,7 @@ public actor SourceKitServer {
 
     // Start a new service.
     return await orLog("failed to start language service", level: .error) {
-      let service = try SourceKitLSP.languageService(
+      let service = try await SourceKitLSP.languageService(
         for: toolchain,
         serverType,
         options: options,
@@ -1974,10 +1974,10 @@ func languageService(
   in workspace: Workspace,
   reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
   workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
-) throws -> ToolchainLanguageServer? {
+) async throws -> ToolchainLanguageServer? {
   let connectionToClient = LocalConnection()
 
-  let server = try languageServerType.serverType.init(
+  let server = try await languageServerType.serverType.init(
     client: connectionToClient,
     toolchain: toolchain,
     options: options,

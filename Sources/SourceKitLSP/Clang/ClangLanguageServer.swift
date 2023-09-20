@@ -40,11 +40,11 @@ extension NSLock {
 /// ``ClangLangaugeServerShim`` conforms to ``MessageHandler`` to receive
 /// requests and notifications **from** clangd, not from the editor and it will
 /// forward them to the editor.
-final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
+actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The server's request queue.
   ///
   /// All incoming requests start on this queue, but should reply or move to another queue as soon as possible to avoid blocking.
-  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
+  public let queue2: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
   /// The connection to the client. In the case of `ClangLanguageServerShim`,
   /// the client is always a ``SourceKitServer``, which will forward the request
@@ -76,7 +76,6 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   private var state: LanguageServerState {
     didSet {
       // `state` must only be set from `queue`.
-      dispatchPrecondition(condition: .onQueue(queue))
       for handler in stateChangeHandlers {
         handler(oldValue, state)
       }
@@ -120,7 +119,7 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
     workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
-  ) throws {
+  ) async throws {
     guard let clangdPath = toolchain.clangd else {
       return nil
     }
@@ -140,8 +139,18 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   }
 
   func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
-    queue.async {
-      self.stateChangeHandlers.append(handler)
+    self.stateChangeHandlers.append(handler)
+  }
+
+  private func handleClangdTermination(terminationStatus: Int32) {
+#if os(Windows)
+    self.hClangd = INVALID_HANDLE_VALUE
+#else
+    self.clangdPid = nil
+#endif
+    if terminationStatus != 0 {
+      self.state = .connectionInterrupted
+      self.restartClangd()
     }
   }
 
@@ -180,16 +189,8 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
       connectionToClangd.close()
       guard let self = self else { return }
-      self.queue.async {
-#if os(Windows)
-        self.hClangd = INVALID_HANDLE_VALUE
-#else
-        self.clangdPid = nil
-#endif
-        if process.terminationStatus != 0 {
-          self.state = .connectionInterrupted
-          self.restartClangd()
-        }
+      Task {
+        await self.handleClangdTermination(terminationStatus: process.terminationStatus)
       }
     }
     try process.run()
@@ -200,45 +201,47 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 #endif
   }
 
+  private func restartClangdImpl(initializeRequest: InitializeRequest) {
+    self.clangRestartScheduled = false
+    do {
+      try self.startClangdProcesss()
+      // FIXME: We assume that clangd will return the same capabilites after restarting.
+      // Theoretically they could have changed and we would need to inform SourceKitServer about them.
+      // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
+      _ = try self.initializeSync(initializeRequest)
+      self.clientInitialized(InitializedNotification())
+      self.reopenDocuments(self)
+      self.state = .connected
+    } catch {
+      log("Failed to restart clangd after a crash.", level: .error)
+    }
+  }
+
   /// Restart `clangd` after it has crashed.
   /// Delays restarting of `clangd` in case there is a crash loop.
   private func restartClangd() {
-    queue.async {
-      precondition(self.state == .connectionInterrupted)
-      
-      precondition(self.clangRestartScheduled == false)
-      self.clangRestartScheduled = true
-      
-      guard let initializeRequest = self.initializeRequest else {
-        log("clangd crashed before it was sent an InitializeRequest.", level: .error)
-        return
-      }
-      
-      let restartDelay: Int
-      if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
-        log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.", level: .info)
-        restartDelay = 10
-      } else {
-        restartDelay = 0
-      }
-      self.lastClangdRestart = Date()
-      
-      DispatchQueue.global(qos: .default).asyncAfter(deadline: .now() + .seconds(restartDelay)) {
-        self.clangRestartScheduled = false
-        do {
-          try self.startClangdProcesss()
-          // FIXME: We assume that clangd will return the same capabilites after restarting.
-          // Theoretically they could have changed and we would need to inform SourceKitServer about them.
-          // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
-          _ = try self.initializeSync(initializeRequest)
-          self.clientInitialized(InitializedNotification())
-          self.reopenDocuments(self)
-          self.queue.async {
-            self.state = .connected
-          }
-        } catch {
-          log("Failed to restart clangd after a crash.", level: .error)
-        }
+    precondition(self.state == .connectionInterrupted)
+
+    precondition(self.clangRestartScheduled == false)
+    self.clangRestartScheduled = true
+
+    guard let initializeRequest = self.initializeRequest else {
+      log("clangd crashed before it was sent an InitializeRequest.", level: .error)
+      return
+    }
+
+    let restartDelay: Int
+    if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
+      log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.", level: .info)
+      restartDelay = 10
+    } else {
+      restartDelay = 0
+    }
+    self.lastClangdRestart = Date()
+
+    DispatchQueue.global(qos: .default).asyncAfter(deadline: .now() + .seconds(restartDelay)) {
+      Task {
+        await self.restartClangdImpl(initializeRequest: initializeRequest)
       }
     }
   }
@@ -248,12 +251,10 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   ///
   /// We should either handle it ourselves or forward it to the client.
   func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    queue.async {
-      if let publishDiags = params as? PublishDiagnosticsNotification {
-        self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-      } else if clientID == ObjectIdentifier(self.clangd) {
-        self.client.send(params)
-      }
+    if let publishDiags = params as? PublishDiagnosticsNotification {
+      self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+    } else if clientID == ObjectIdentifier(self.clangd) {
+      self.client.send(params)
     }
   }
 
@@ -267,16 +268,14 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    queue.async {
-      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
-        reply(result)
-      })
+    let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
+      reply(result)
+    })
 
-      if request.clientID == ObjectIdentifier(self.clangd) {
-        self.forwardRequest(request, to: self.client)
-      } else {
-        request.reply(.failure(ResponseError.methodNotFound(R.method)))
-      }
+    if request.clientID == ObjectIdentifier(self.clangd) {
+      self.forwardRequest(request, to: self.client)
+    } else {
+      request.reply(.failure(ResponseError.methodNotFound(R.method)))
     }
   }
 
@@ -298,7 +297,7 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     to: Connection,
     _ handler: ((LSPResult<R.Response>) -> Void)? = nil)
   {
-    let id = to.send(request.params, queue: queue) { result in
+    let id = to.send(request.params, queue: queue2) { result in
       handler?(result)
       request.reply(result)
     }
@@ -309,38 +308,32 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   
   /// Forward the given `notification` to `clangd` by asynchronously switching to `queue` for a thread-safe access to `clangd`.
   private func forwardNotificationToClangdOnQueue<Notification>(_ notification: Notification) where Notification: NotificationType {
-    queue.async {
-      self.clangd.send(notification)
-    }
+    self.clangd.send(notification)
   }
 
   func _crash() {
-    self.queue.async {
-      // Since `clangd` doesn't have a method to crash it, kill it.
+    // Since `clangd` doesn't have a method to crash it, kill it.
 #if os(Windows)
-      if self.hClangd != INVALID_HANDLE_VALUE {
-        // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
-        // process if a kobject is a pending state.  Unfortunately, the
-        // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
-        // `ExitProcess` dance, while safer, can also indefinitely hang as
-        // `CreateRemoteThread` may not be serviced depending on the state of
-        // the process.  This just attempts to terminate the process, risking a
-        // deadlock and resource leaks.
-        _ = TerminateProcess(self.hClangd, 0)
-      }
-#else
-      if let pid = self.clangdPid {
-        kill(pid, SIGKILL)
-      }
-#endif
+    if self.hClangd != INVALID_HANDLE_VALUE {
+      // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
+      // process if a kobject is a pending state.  Unfortunately, the
+      // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
+      // `ExitProcess` dance, while safer, can also indefinitely hang as
+      // `CreateRemoteThread` may not be serviced depending on the state of
+      // the process.  This just attempts to terminate the process, risking a
+      // deadlock and resource leaks.
+      _ = TerminateProcess(self.hClangd, 0)
     }
+#else
+    if let pid = self.clangdPid {
+      kill(pid, SIGKILL)
+    }
+#endif
   }
   
   /// Forward the given `request` to `clangd` by asynchronously switching to `queue` for a thread-safe access to `clangd`.
   private func forwardRequestToClangdOnQueue<R>(_ request: Request<R>, _ handler: ((LSPResult<R.Response>) -> Void)? = nil) {
-    queue.async {
-      self.forwardRequest(request, to: self.clangd, handler)
-    }
+    self.forwardRequest(request, to: self.clangd, handler)
   }
 }
 
@@ -372,14 +365,12 @@ extension ClangLanguageServerShim {
 extension ClangLanguageServerShim {
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
-    return try queue.sync {
-      // Store the initialize request so we can replay it in case clangd crashes
-      self.initializeRequest = initialize
-      
-      let result = try clangd.sendSync(initialize)
-      self.capabilities = result.capabilities
-      return result
-    }
+    // Store the initialize request so we can replay it in case clangd crashes
+    self.initializeRequest = initialize
+
+    let result = try clangd.sendSync(initialize)
+    self.capabilities = result.capabilities
+    return result
   }
 
   public func clientInitialized(_ initialized: InitializedNotification) {
@@ -388,10 +379,11 @@ extension ClangLanguageServerShim {
 
   public func shutdown() async {
     await withCheckedContinuation { continuation in
-      queue.async {
-        _ = self.clangd.send(ShutdownRequest(), queue: self.queue) { [weak self] _ in
-          self?.clangd.send(ExitNotification())
-          if let localConnection = self?.client as? LocalConnection {
+      _ = self.clangd.send(ShutdownRequest(), queue: self.queue2) { [weak self] _ in
+        guard let self else { return }
+        Task {
+          await self.clangd.send(ExitNotification())
+          if let localConnection = self.client as? LocalConnection {
             localConnection.close()
           }
           continuation.resume()
@@ -510,12 +502,10 @@ extension ClangLanguageServerShim {
   }
 
   func documentColor(_ req: Request<DocumentColorRequest>) {
-    queue.async {
-      if self.capabilities?.colorProvider?.isSupported == true {
-        self.forwardRequestToClangdOnQueue(req)
-      } else {
-        req.reply(.success([]))
-      }
+    if self.capabilities?.colorProvider?.isSupported == true {
+      self.forwardRequestToClangdOnQueue(req)
+    } else {
+      req.reply(.success([]))
     }
   }
 
@@ -532,12 +522,10 @@ extension ClangLanguageServerShim {
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    queue.async {
-      if self.capabilities?.colorProvider?.isSupported == true {
-        self.forwardRequestToClangdOnQueue(req)
-      } else {
-        req.reply(.success([]))
-      }
+    if self.capabilities?.colorProvider?.isSupported == true {
+      self.forwardRequestToClangdOnQueue(req)
+    } else {
+      req.reply(.success([]))
     }
   }
 
@@ -554,12 +542,10 @@ extension ClangLanguageServerShim {
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    queue.async {
-      if self.capabilities?.foldingRangeProvider?.isSupported == true {
-        self.forwardRequestToClangdOnQueue(req)
-      } else {
-        req.reply(.success(nil))
-      }
+    if self.capabilities?.foldingRangeProvider?.isSupported == true {
+      self.forwardRequestToClangdOnQueue(req)
+    } else {
+      req.reply(.success(nil))
     }
   }
 
