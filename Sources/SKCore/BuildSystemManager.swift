@@ -85,7 +85,7 @@ extension MainFileStatus {
 /// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
-public final class BuildSystemManager {
+public actor BuildSystemManager {
 
   /// Queue for processing asynchronous work and mutual exclusion for shared state.
   let queue: DispatchQueue = DispatchQueue(label: "\(BuildSystemManager.self)-queue")
@@ -141,9 +141,17 @@ extension BuildSystemManager {
     set { queue.sync { _delegate = newValue } }
   }
 
+  public func setDelegate(_ delegate: BuildSystemDelegate?) {
+    self.delegate = delegate
+  }
+
   public var mainFilesProvider: MainFilesProvider? {
     get { queue.sync { _mainFilesProvider} }
     set { queue.sync { _mainFilesProvider = newValue } }
+  }
+
+  public func setMainFilesProvider(_ mainFilesProvider: MainFilesProvider?) {
+    self.mainFilesProvider = mainFilesProvider
   }
 
   public func settings(for document: DocumentURI, language: Language) async -> FileBuildSettingsChange {
@@ -327,14 +335,20 @@ extension BuildSystemManager {
     }
   }
 
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+  public nonisolated func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     return max(buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled, fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled)
   }
 }
 
 extension BuildSystemManager: BuildSystemDelegate {
 
-  public func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) {
+  public nonisolated func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) {
+    Task {
+      await fileBuildSettingsChangedImpl(changes)
+    }
+  }
+
+  public func fileBuildSettingsChangedImpl(_ changes: [DocumentURI: FileBuildSettingsChange]) {
     queue.async {
       let statusChanges: [DocumentURI: MainFileStatus] =
           changes.reduce(into: [:]) { (result, entry) in
@@ -367,7 +381,13 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+  public nonisolated func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+    Task {
+      await filesDependenciesUpdatedImpl(changedFiles)
+    }
+  }
+
+  public func filesDependenciesUpdatedImpl(_ changedFiles: Set<DocumentURI>) {
     queue.async {
       // Empty changes --> assume everything has changed.
       guard !changedFiles.isEmpty else {
@@ -390,7 +410,13 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
+  public nonisolated func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
+    Task {
+      await buildTargetsChangedImpl(changes)
+    }
+  }
+
+  public func buildTargetsChangedImpl(_ changes: [BuildTargetEvent]) {
     queue.async {
       if let delegate = self._delegate {
         self.notifyQueue.async {
@@ -400,7 +426,13 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func fileHandlingCapabilityChanged() {
+  public nonisolated func fileHandlingCapabilityChanged() {
+    Task {
+      await fileHandlingCapabilityChangedImpl()
+    }
+  }
+
+  public func fileHandlingCapabilityChangedImpl() {
     queue.async {
       if let delegate = self._delegate {
         self.notifyQueue.async {
@@ -413,8 +445,14 @@ extension BuildSystemManager: BuildSystemDelegate {
 
 extension BuildSystemManager: MainFilesDelegate {
 
+  public nonisolated func mainFilesChanged() {
+    Task {
+      await mainFilesChangedImpl()
+    }
+  }
+
   // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
-  public func mainFilesChanged() {
+  public func mainFilesChangedImpl() {
     queue.async {
       let origWatched = self.watchedFiles
       self.watchedFiles = [:]
