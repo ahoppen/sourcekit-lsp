@@ -19,6 +19,15 @@ import SKSwiftPMWorkspace
 
 import struct TSCBasic.AbsolutePath
 
+/// Same as `??` but allows the right-hand side of the operator to 'await'.
+private func or<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T) async rethrows -> T {
+  if let optional {
+    return optional
+  }
+  return try await defaultValue()
+}
+
+
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
@@ -57,14 +66,14 @@ public final class Workspace {
     buildSetup: BuildSetup,
     underlyingBuildSystem: BuildSystem?,
     index: IndexStoreDB?,
-    indexDelegate: SourceKitIndexDelegate?)
+    indexDelegate: SourceKitIndexDelegate?) async
   {
     self.documentManager = documentManager
     self.buildSetup = buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.index = index
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
       mainFilesProvider: index)
@@ -86,7 +95,7 @@ public final class Workspace {
     buildSetup: BuildSetup,
     indexOptions: IndexOptions = IndexOptions(),
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
-  ) throws {
+  ) async throws {
     var buildSystem: BuildSystem? = nil
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
@@ -110,14 +119,14 @@ public final class Workspace {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    if let storePath = indexOptions.indexStorePath ?? buildSystem?.indexStorePath,
-       let dbPath = indexOptions.indexDatabasePath ?? buildSystem?.indexDatabasePath,
+    if let storePath = await or(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
+       let dbPath = await or(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
-        let prefixMappings = indexOptions.indexPrefixMappings ?? buildSystem?.indexPrefixMappings ?? []
+        let prefixMappings = await or(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
@@ -131,7 +140,7 @@ public final class Workspace {
       }
     }
 
-    self.init(
+    await self.init(
       documentManager: documentManager,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,

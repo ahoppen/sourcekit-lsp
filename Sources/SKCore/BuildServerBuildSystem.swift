@@ -65,6 +65,10 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate?
 
+  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
