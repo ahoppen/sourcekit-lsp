@@ -53,7 +53,7 @@ extension SwiftLanguageServer {
   private func _expressionTypeInfos(
     _ uri: DocumentURI,
     _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
-  ) {
+  ) async {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
     }
@@ -65,7 +65,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.buildSettings(for: uri) {
+    if let compileCommand = await self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -105,7 +105,7 @@ extension SwiftLanguageServer {
   func expressionTypeInfos(
     _ uri: DocumentURI,
     _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
-  ) {
-    self._expressionTypeInfos(uri, completion)
+  ) async {
+    await self._expressionTypeInfos(uri, completion)
   }
 }

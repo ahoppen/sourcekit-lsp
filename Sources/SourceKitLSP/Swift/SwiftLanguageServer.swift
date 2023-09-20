@@ -117,8 +117,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentCompletionSession: CodeCompletionSession? = nil
 
-  var _commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
-
   /// *For Testing*
   public var reusedNodeCallback: ReusedNodeCallback?
 
@@ -148,6 +146,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   /// A callback with which `SwiftLanguageServer` can request its owner to reopen all documents in case it has crashed.
   private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
+  private let workspaceForDocument: (DocumentURI) async -> Workspace?
+
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
   /// Returns `nil` if `sourcektid` couldn't be found.
@@ -156,7 +156,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
+    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
   ) throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.client = client
@@ -166,12 +167,17 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     self.documentManager = DocumentManager()
     self.state = .connected
     self.reopenDocuments = reopenDocuments
+    self.workspaceForDocument = workspaceForDocument
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
   }
 
-  func buildSettings(for document: DocumentURI) -> SwiftCompileCommand? {
-    return _commandsByFile[document]
+  func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
+    guard let workspace = await self.workspaceForDocument(document) else {
+      return nil
+    }
+    let buildSettingsChange = await workspace.buildSystemManager.settings(for: document, language: .swift)
+    return SwiftCompileCommand(change: buildSettingsChange)
   }
 
   public func canHandle(workspace: Workspace) -> Bool {
@@ -291,7 +297,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   private func registerDiagnostics(
     sourcekitdDiagnostics: SKDResponseArray?,
     snapshot: DocumentSnapshot,
-    stage: DiagnosticStage
+    stage: DiagnosticStage,
+    isFallback: Bool
   ) -> [Diagnostic] {
     let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
 
@@ -307,7 +314,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       old: currentDiagnostics[snapshot.document.uri] ?? [],
       new: newDiags,
       stage: stage,
-      isFallback: self.buildSettings(for: snapshot.document.uri)?.isFallback ?? true
+      isFallback: isFallback
     )
     currentDiagnostics[snapshot.document.uri] = result
 
@@ -336,7 +343,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     let diagnostics = registerDiagnostics(
       sourcekitdDiagnostics: response[keys.diagnostics],
       snapshot: snapshot,
-      stage: stage
+      stage: stage,
+      isFallback: compileCommand?.isFallback ?? true
     )
 
     client.send(
@@ -349,11 +357,11 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   }
 
   /// Should be called on self.queue.
-  func handleDocumentUpdate(uri: DocumentURI) {
+  func handleDocumentUpdate(uri: DocumentURI) async {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
-    let compileCommand = self.buildSettings(for: uri)
+    let compileCommand = await self.buildSettings(for: uri)
 
     // Make the magic 0,0 replacetext request to update diagnostics and semantic tokens.
 
@@ -469,16 +477,7 @@ extension SwiftLanguageServer {
     self.updateSyntacticTokens(for: snapshot)
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
-    let compileCommand = SwiftCompileCommand(change: change)
-    // Confirm that the compile commands actually changed, otherwise we don't need to do anything.
-    // This includes when the compiler arguments are the same but the command is no longer
-    // considered to be fallback.
-    guard self._commandsByFile[uri] != compileCommand else {
-      return
-    }
-    self._commandsByFile[uri] = compileCommand
-
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
     // We may not have a snapshot if this is called just before `openDocument`.
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       return
@@ -486,22 +485,22 @@ extension SwiftLanguageServer {
 
     // Close and re-open the document internally to inform sourcekitd to update the compile
     // command. At the moment there's no better way to do this.
-    self.reopenDocument(snapshot, compileCommand)
+    self.reopenDocument(snapshot, await self.buildSettings(for: uri))
   }
 
-  public func documentDependenciesUpdated(_ uri: DocumentURI) {
+  public func documentDependenciesUpdated(_ uri: DocumentURI) async {
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       return
     }
 
     // Forcefully reopen the document since the `BuildSystem` has informed us
     // that the dependencies have changed and the AST needs to be reloaded.
-    self.reopenDocument(snapshot, self.buildSettings(for: uri))
+    await self.reopenDocument(snapshot, self.buildSettings(for: uri))
   }
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) {
+  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
     let keys = self.keys
 
     guard let snapshot = self.documentManager.open(note) else {
@@ -515,7 +514,7 @@ extension SwiftLanguageServer {
     req[keys.name] = note.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
 
-    let compileCommand = self.buildSettings(for: uri)
+    let compileCommand = await self.buildSettings(for: uri)
 
     if let compilerArgs = compileCommand?.compilerArgs {
       req[keys.compilerargs] = compilerArgs
@@ -541,13 +540,12 @@ extension SwiftLanguageServer {
     req[keys.name] = uri.pseudoPath
 
     // Clear settings that should not be cached for closed documents.
-    self._commandsByFile[uri] = nil
     self.currentDiagnostics[uri] = nil
 
     _ = try? self.sourcekitd.sendSync(req)
   }
 
-  public func changeDocument(_ note: DidChangeTextDocumentNotification) {
+  public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
     let keys = self.keys
     var edits: [IncrementalEdit] = []
 
@@ -593,7 +591,7 @@ extension SwiftLanguageServer {
     }
 
     if let dict = lastResponse, let snapshot = snapshot {
-      let compileCommand = self.buildSettings(for: note.textDocument.uri)
+      let compileCommand = await self.buildSettings(for: note.textDocument.uri)
       self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
@@ -619,14 +617,14 @@ extension SwiftLanguageServer {
     return false
   }
 
-  public func completion(_ req: Request<CompletionRequest>) {
-    self._completion(req)
+  public func completion(_ req: Request<CompletionRequest>) async {
+    await self._completion(req)
   }
 
-  public func hover(_ req: Request<HoverRequest>) {
+  public func hover(_ req: Request<HoverRequest>) async {
     let uri = req.params.textDocument.uri
     let position = req.params.position
-    cursorInfo(uri, position..<position) { result in
+    await cursorInfo(uri, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure, error != .responseError(.serverCancelled) {
           log("cursor info failed \(uri):\(position): \(error)", level: .warning)
@@ -663,10 +661,10 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func symbolInfo(_ req: Request<SymbolInfoRequest>) {
+  public func symbolInfo(_ req: Request<SymbolInfoRequest>) async {
     let uri = req.params.textDocument.uri
     let position = req.params.position
-    cursorInfo(uri, position..<position) { result in
+    await cursorInfo(uri, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
           log("cursor info failed \(uri):\(position): \(error)", level: .warning)
@@ -931,7 +929,7 @@ extension SwiftLanguageServer {
     req.reply([presentation])
   }
 
-  public func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
+  public func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) async {
     let keys = self.keys
 
     guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
@@ -952,7 +950,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.buildSettings(for: snapshot.document.uri) {
+    if let compileCommand = await self.buildSettings(for: snapshot.document.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -1242,12 +1240,14 @@ extension SwiftLanguageServer {
       for provider in providers {
         taskGroup.addTask {
           await withCheckedContinuation { continuation in
-            provider(req.params) {
-              switch $0 {
-              case .success(let actions):
-                continuation.resume(returning: actions)
-              case .failure:
-                continuation.resume(returning: [])
+            Task {
+              await provider(req.params) {
+                switch $0 {
+                case .success(let actions):
+                  continuation.resume(returning: actions)
+                case .failure:
+                  continuation.resume(returning: [])
+                }
               }
             }
           }
@@ -1262,12 +1262,12 @@ extension SwiftLanguageServer {
     completion(.success(codeActions))
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+  func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) async {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
-    _cursorInfo(
+    await _cursorInfo(
       params.textDocument.uri,
       params.range,
       additionalParameters: additionalCursorInfoParameters)
@@ -1355,9 +1355,9 @@ extension SwiftLanguageServer {
     completion(.success(codeActions))
   }
 
-  public func inlayHint(_ req: Request<InlayHintRequest>) {
+  public func inlayHint(_ req: Request<InlayHintRequest>) async {
     let uri = req.params.textDocument.uri
-    variableTypeInfos(uri, req.params.range) { infosResult in
+    await variableTypeInfos(uri, req.params.range) { infosResult in
       do {
         let infos = try infosResult.get()
         let hints = infos
@@ -1393,7 +1393,7 @@ extension SwiftLanguageServer {
   public func _documentDiagnostic(
     _ uri: DocumentURI,
     _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
-  ) {
+  ) async {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       let msg = "failed to find snapshot for url \(uri)"
       log(msg)
@@ -1407,8 +1407,12 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.buildSettings(for: uri) {
+    let isFallback: Bool
+    if let compileCommand = await self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
+      isFallback = compileCommand.isFallback
+    } else {
+      isFallback = true
     }
 
     let handle = self.sourcekitd.send(skreq, self.queue2) { response in
@@ -1419,7 +1423,8 @@ extension SwiftLanguageServer {
       let diagnostics = self.registerDiagnostics(
         sourcekitdDiagnostics: dict[keys.diagnostics],
         snapshot: snapshot,
-        stage: .sema
+        stage: .sema,
+        isFallback: isFallback
       )
 
       completion(.success(diagnostics))
@@ -1432,13 +1437,13 @@ extension SwiftLanguageServer {
   public func documentDiagnostic(
     _ uri: DocumentURI,
     _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
-  ) {
-    self._documentDiagnostic(uri, completion)
+  ) async {
+    await self._documentDiagnostic(uri, completion)
   }
 
-  public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
+  public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async {
     let uri = req.params.textDocument.uri
-    documentDiagnostic(req.params.textDocument.uri) { result in
+    await documentDiagnostic(req.params.textDocument.uri) { result in
       switch result {
         case .success(let diagnostics):
           req.reply(.full(.init(items: diagnostics)))
@@ -1451,7 +1456,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func executeCommand(_ req: Request<ExecuteCommandRequest>) {
+  public func executeCommand(_ req: Request<ExecuteCommandRequest>) async {
     let params = req.params
     //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
@@ -1460,7 +1465,7 @@ extension SwiftLanguageServer {
       return req.reply(.failure(.unknown(message)))
     }
     let uri = swiftCommand.textDocument.uri
-    semanticRefactoring(swiftCommand) { result in
+    await semanticRefactoring(swiftCommand) { result in
       switch result {
       case .success(let refactor):
         let edit = refactor.edit
@@ -1511,7 +1516,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       await notificationImpl(notification)
     }
   }
-  public func notificationImpl(_ notification: SKDResponse) {
+  public func notificationImpl(_ notification: SKDResponse) async {
     // Check if we need to update our `state` based on the contents of the notification.
     // Execute the entire code block on `queue` because we need to switch to `queue` anyway to
     // check `state` in the second `if`. Moving `queue.async` up ensures we only need to switch
@@ -1572,7 +1577,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       } else {
         uri = DocumentURI(string: name)
       }
-      self.handleDocumentUpdate(uri: uri)
+      await self.handleDocumentUpdate(uri: uri)
     }
   }
 }

@@ -154,7 +154,11 @@ extension BuildSystemManager {
       }
     } catch {}
     if let settings = fallbackBuildSystem?.settings(for: document, language: language) {
-      return .fallback(settings)
+      if buildSystem == nil {
+        return .modified(settings)
+      } else {
+        return .fallback(settings)
+      }
     } else {
       return .removedOrUnavailable
     }
