@@ -34,6 +34,18 @@ public func assertEqual<T: Equatable>(
   XCTAssertEqual(expression1, expression2, message(), file: file, line: line)
 }
 
+/// Same as `XCTAssertNil` but doesn't take autoclosures and thus `expression`
+/// can contain `await`.
+public func assertNil<T: Equatable>(
+  _ expression: T?,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssertNil(expression, message(), file: file, line: line)
+}
+
+
 extension XCTestCase {
   private struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
     var description: String {
