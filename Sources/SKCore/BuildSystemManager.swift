@@ -86,8 +86,8 @@ extension MainFileStatus {
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
 public actor BuildSystemManager {
-  /// Queue for asynchronous notifications.
-  let notifyQueue: DispatchQueue = DispatchQueue(label: "\(BuildSystemManager.self)-notify")
+//  /// Queue for asynchronous notifications.
+//  let notifyQueue: DispatchQueue = DispatchQueue(label: "\(BuildSystemManager.self)-notify")
 
   /// The set of watched files, along with their main file and language.
   var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
@@ -183,9 +183,7 @@ extension BuildSystemManager {
     if let mainChange = newStatus.buildSettingsChange,
        let delegate = self._delegate {
       let change = self.convert(change: mainChange, ofMainFile: mainFile, to: uri)
-      self.notifyQueue.async {
-        delegate.fileBuildSettingsChanged([uri: change])
-      }
+      delegate.fileBuildSettingsChanged([uri: change])
     }
   }
 
@@ -281,9 +279,7 @@ extension BuildSystemManager {
     }
 
     if !changedWatchedFiles.isEmpty, let delegate = self._delegate {
-      self.notifyQueue.async {
-        delegate.fileBuildSettingsChanged(changedWatchedFiles)
-      }
+      delegate.fileBuildSettingsChanged(changedWatchedFiles)
     }
   }
 
@@ -379,9 +375,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     // Empty changes --> assume everything has changed.
     guard !changedFiles.isEmpty else {
       if let delegate = self._delegate {
-        self.notifyQueue.async {
-          delegate.filesDependenciesUpdated(changedFiles)
-        }
+        delegate.filesDependenciesUpdated(changedFiles)
       }
       return
     }
@@ -390,9 +384,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     let changedWatchedFiles = self.watchedFiles.filter { changedFiles.contains($1.mainFile) }
     let newChangedFiles = Set(changedWatchedFiles.map { $0.key })
     if let delegate = self._delegate, !newChangedFiles.isEmpty {
-      self.notifyQueue.async {
-        delegate.filesDependenciesUpdated(newChangedFiles)
-      }
+      delegate.filesDependenciesUpdated(newChangedFiles)
     }
   }
 
@@ -404,9 +396,7 @@ extension BuildSystemManager: BuildSystemDelegate {
 
   public func buildTargetsChangedImpl(_ changes: [BuildTargetEvent]) {
     if let delegate = self._delegate {
-      self.notifyQueue.async {
-        delegate.buildTargetsChanged(changes)
-      }
+      delegate.buildTargetsChanged(changes)
     }
   }
 
@@ -418,9 +408,7 @@ extension BuildSystemManager: BuildSystemDelegate {
 
   public func fileHandlingCapabilityChangedImpl() {
     if let delegate = self._delegate {
-      self.notifyQueue.async {
-        delegate.fileHandlingCapabilityChanged()
-      }
+      delegate.fileHandlingCapabilityChanged()
     }
   }
 }
@@ -460,9 +448,7 @@ extension BuildSystemManager: MainFilesDelegate {
     }
 
     if let delegate = self._delegate, !buildSettingsChanges.isEmpty {
-      self.notifyQueue.async {
-        delegate.fileBuildSettingsChanged(buildSettingsChanges)
-      }
+      delegate.fileBuildSettingsChanged(buildSettingsChanges)
     }
   }
 }
