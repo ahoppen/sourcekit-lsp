@@ -15,11 +15,18 @@ import LSPLogging
 import LSPTestSupport
 import SKTestSupport
 import SourceKitLSP
+import SwiftParser
 import XCTest
 import SwiftSyntax
 
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
+
+extension SwiftLanguageServer {
+  func setReusedNodeCallback(_ callback: ReusedNodeCallback?) {
+    self.reusedNodeCallback = callback
+  }
+}
 
 final class LocalSwiftTests: XCTestCase {
 
@@ -1484,7 +1491,7 @@ final class LocalSwiftTests: XCTestCase {
 
     var reusedNodes: [Syntax] = []
     let swiftLanguageServer = await connection.server!._languageService(for: uri, .swift, in: connection.server!.workspaceForDocument(uri: uri)!) as! SwiftLanguageServer
-    swiftLanguageServer.reusedNodeCallback = { reusedNodes.append($0) }
+    await swiftLanguageServer.setReusedNodeCallback({ reusedNodes.append($0) })
     sk.allowUnexpectedNotification = false
     
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(

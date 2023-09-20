@@ -30,30 +30,28 @@ extension SwiftLanguageServer {
     let moduleName = request.params.moduleName
     let name = request.params.name
     let symbol = request.params.symbolUSR
-    self.queue.async {
-      let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
-      let interfaceDocURI = DocumentURI(interfaceFilePath)
-      // has interface already been generated
-      if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
-        self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-      } else {
-        // generate interface
-        self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
-          switch result {
-          case .success(let interfaceInfo):
-            do {
-              // write to file
-              try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
-              // store snapshot
-              let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
-              self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-            } catch {
-              request.reply(.failure(ResponseError.unknown(error.localizedDescription)))
-            }
-          case .failure(let error):
-            log("open interface failed: \(error)", level: .warning)
-            request.reply(.failure(ResponseError(error)))
+    let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
+    let interfaceDocURI = DocumentURI(interfaceFilePath)
+    // has interface already been generated
+    if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
+      self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
+    } else {
+      // generate interface
+      self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
+        switch result {
+        case .success(let interfaceInfo):
+          do {
+            // write to file
+            try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
+            // store snapshot
+            let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
+            self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
+          } catch {
+            request.reply(.failure(ResponseError.unknown(error.localizedDescription)))
           }
+        case .failure(let error):
+          log("open interface failed: \(error)", level: .warning)
+          request.reply(.failure(ResponseError(error)))
         }
       }
     }
@@ -85,7 +83,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
     
-    let handle = self.sourcekitd.send(skreq, self.queue) { result in
+    let handle = self.sourcekitd.send(skreq, self.queue2) { result in
       switch result {
       case .success(let dict):
         return completion(.success(InterfaceInfo(contents: dict[keys.sourcetext] ?? "")))
@@ -134,7 +132,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = uri.pseudoPath
     skreq[keys.usr] = symbol
     
-    let handle = self.sourcekitd.send(skreq, self.queue) { result in
+    let handle = self.sourcekitd.send(skreq, self.queue2) { result in
       switch result {
       case .success(let dict):
         if let offset: Int = dict[keys.offset],

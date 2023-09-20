@@ -52,7 +52,7 @@ class CodeCompletionSession {
   {
     self.server = server
     self.queue =
-      DispatchQueue(label: "\(Self.self)-queue", qos: .userInitiated, target: server.queue)
+      DispatchQueue(label: "\(Self.self)-queue", qos: .userInitiated, target: server.queue2)
     self.snapshot = snapshot
     self.utf8StartOffset = utf8Offset
     self.position = position

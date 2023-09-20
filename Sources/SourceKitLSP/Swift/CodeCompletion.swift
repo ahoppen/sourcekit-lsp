@@ -101,7 +101,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = sourcekitd.send(skreq, queue) { [weak self] result in
+    let handle = sourcekitd.send(skreq, queue2) { [weak self] result in
       guard let self = self else { return }
       guard let dict = result.success else {
         req.reply(.failure(ResponseError(result.failure!)))
@@ -120,7 +120,7 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  func completionsFromSKDResponse(
+  nonisolated func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     completionPos: Position,
@@ -220,7 +220,7 @@ extension SwiftLanguageServer {
     return Position(line: pos.line, utf16index: adjustedOffset)
   }
 
-  private func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
+  private nonisolated func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
     let textEditRangeStart: Position
 
     // Compute the TextEdit

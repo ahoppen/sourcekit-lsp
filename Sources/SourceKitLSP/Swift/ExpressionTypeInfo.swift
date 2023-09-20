@@ -54,8 +54,6 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
   ) {
-    dispatchPrecondition(condition: .onQueue(queue))
-
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
     }
@@ -71,7 +69,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { result in
+    let handle = self.sourcekitd.send(skreq, self.queue2) { result in
       guard let dict = result.success else {
         return completion(.failure(.responseError(ResponseError(result.failure!))))
       }
@@ -108,8 +106,6 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
   ) {
-    queue.async {
-      self._expressionTypeInfos(uri, completion)
-    }
+    self._expressionTypeInfos(uri, completion)
   }
 }

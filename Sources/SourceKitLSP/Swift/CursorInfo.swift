@@ -103,7 +103,7 @@ extension SwiftLanguageServer {
 
     appendAdditionalParameters?(skreq)
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+    let handle = self.sourcekitd.send(skreq, self.queue2) { [weak self] result in
       guard let self = self else { return }
       guard let dict = result.success else {
         return completion(.failure(.responseError(ResponseError(result.failure!))))
@@ -163,9 +163,7 @@ extension SwiftLanguageServer {
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
-    self.queue.async {
-      self._cursorInfo(uri, range,
-                       additionalParameters: appendAdditionalParameters, completion)
-    }
+    self._cursorInfo(uri, range,
+                     additionalParameters: appendAdditionalParameters, completion)
   }
 }
