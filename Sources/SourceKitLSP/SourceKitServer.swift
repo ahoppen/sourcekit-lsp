@@ -693,12 +693,12 @@ extension SourceKitServer: BuildSystemDelegate {
         await service.documentUpdatedBuildSettings(uri, change: change)
 
         // Catch up on any queued notifications and requests.
-        for task in documentToPendingQueue[uri]?.queue ?? [] {
-          await task.operation()
-        }
-        self.documentToPendingQueue[uri]?.queue = []
+        let tasks = documentToPendingQueue[uri]?.queue ?? []
         self.documentToPendingQueue[uri] = nil
         self.documentsReady.insert(uri)
+        for task in tasks {
+          await task.operation()
+        }
         continue
       }
 

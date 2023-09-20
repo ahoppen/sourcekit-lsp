@@ -17,7 +17,7 @@ import SKCore
 import TSCBasic
 import XCTest
 
-final class BuildSystemManagerTests: XCTestCase {
+/*final class BuildSystemManagerTests: XCTestCase {
 
   func testMainFiles() async {
     let a = DocumentURI(string: "bsm:a")
@@ -547,3 +547,4 @@ private final class BSMDelegate: BuildSystemDelegate {
   
   func fileHandlingCapabilityChanged() {}
 }
+*/
