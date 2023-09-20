@@ -51,6 +51,8 @@ public protocol BuildSystem: AnyObject {
   /// initial reports as well as changes.
   var delegate: BuildSystemDelegate? { get set }
 
+  func settings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings?
+
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
   ///

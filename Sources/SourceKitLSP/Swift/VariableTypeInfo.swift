@@ -108,7 +108,7 @@ extension SwiftLanguageServer {
     }
 
     // FIXME: SourceKit should probably cache this for us
-    if let compileCommand = self.commandsByFile[uri] {
+    if let compileCommand = self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

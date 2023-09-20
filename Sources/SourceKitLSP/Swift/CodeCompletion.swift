@@ -75,7 +75,7 @@ extension SwiftLanguageServer {
         snapshot: snapshot,
         utf8Offset: offset,
         position: completionPos,
-        compileCommand: commandsByFile[snapshot.document.uri])
+        compileCommand: buildSettings(for: snapshot.document.uri))
 
       currentCompletionSession?.close()
       currentCompletionSession = session
@@ -97,7 +97,7 @@ extension SwiftLanguageServer {
     skreq[keys.codecomplete_options] = skreqOptions
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = commandsByFile[snapshot.document.uri] {
+    if let compileCommand = buildSettings(for: snapshot.document.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

@@ -117,8 +117,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentCompletionSession: CodeCompletionSession? = nil
 
-  var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
-  
+  var _commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
+
   /// *For Testing*
   public var reusedNodeCallback: ReusedNodeCallback?
 
@@ -168,6 +168,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     self.reopenDocuments = reopenDocuments
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+  }
+
+  func buildSettings(for document: DocumentURI) -> SwiftCompileCommand? {
+    return _commandsByFile[document]
   }
 
   public func canHandle(workspace: Workspace) -> Bool {
@@ -303,7 +307,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       old: currentDiagnostics[snapshot.document.uri] ?? [],
       new: newDiags,
       stage: stage,
-      isFallback: self.commandsByFile[snapshot.document.uri]?.isFallback ?? true
+      isFallback: self.buildSettings(for: snapshot.document.uri)?.isFallback ?? true
     )
     currentDiagnostics[snapshot.document.uri] = result
 
@@ -349,7 +353,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
-    let compileCommand = self.commandsByFile[uri]
+    let compileCommand = self.buildSettings(for: uri)
 
     // Make the magic 0,0 replacetext request to update diagnostics and semantic tokens.
 
@@ -470,10 +474,10 @@ extension SwiftLanguageServer {
     // Confirm that the compile commands actually changed, otherwise we don't need to do anything.
     // This includes when the compiler arguments are the same but the command is no longer
     // considered to be fallback.
-    guard self.commandsByFile[uri] != compileCommand else {
+    guard self._commandsByFile[uri] != compileCommand else {
       return
     }
-    self.commandsByFile[uri] = compileCommand
+    self._commandsByFile[uri] = compileCommand
 
     // We may not have a snapshot if this is called just before `openDocument`.
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
@@ -492,7 +496,7 @@ extension SwiftLanguageServer {
 
     // Forcefully reopen the document since the `BuildSystem` has informed us
     // that the dependencies have changed and the AST needs to be reloaded.
-    self.reopenDocument(snapshot, self.commandsByFile[uri])
+    self.reopenDocument(snapshot, self.buildSettings(for: uri))
   }
 
   // MARK: - Text synchronization
@@ -511,7 +515,7 @@ extension SwiftLanguageServer {
     req[keys.name] = note.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
 
-    let compileCommand = self.commandsByFile[uri]
+    let compileCommand = self.buildSettings(for: uri)
 
     if let compilerArgs = compileCommand?.compilerArgs {
       req[keys.compilerargs] = compilerArgs
@@ -537,7 +541,7 @@ extension SwiftLanguageServer {
     req[keys.name] = uri.pseudoPath
 
     // Clear settings that should not be cached for closed documents.
-    self.commandsByFile[uri] = nil
+    self._commandsByFile[uri] = nil
     self.currentDiagnostics[uri] = nil
 
     _ = try? self.sourcekitd.sendSync(req)
@@ -589,7 +593,7 @@ extension SwiftLanguageServer {
     }
 
     if let dict = lastResponse, let snapshot = snapshot {
-      let compileCommand = self.commandsByFile[note.textDocument.uri]
+      let compileCommand = self.buildSettings(for: note.textDocument.uri)
       self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
@@ -948,7 +952,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+    if let compileCommand = self.buildSettings(for: snapshot.document.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -1403,7 +1407,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.commandsByFile[uri] {
+    if let compileCommand = self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

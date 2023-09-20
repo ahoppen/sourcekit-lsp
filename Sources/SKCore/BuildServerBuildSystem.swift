@@ -65,6 +65,8 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate?
 
+  private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
+
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
@@ -195,7 +197,16 @@ public final class BuildServerBuildSystem: MessageHandler {
     let result = notification.params.updatedOptions
     let settings = FileBuildSettings(
         compilerArguments: result.options, workingDirectory: result.workingDirectory)
-    self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
+    self.buildSettingsChanged(for: notification.params.uri, settings: settings)
+  }
+
+  private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) {
+    buildSettings[document] = settings
+    if let settings {
+      self.delegate?.fileBuildSettingsChanged([document: .modified(settings)])
+    } else {
+      self.delegate?.fileBuildSettingsChanged([document: .removedOrUnavailable])
+    }
   }
 }
 
@@ -208,19 +219,10 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem {
-  /// Exposed for *testing*.
-  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
-      return FileBuildSettings(
-        compilerArguments: response.options,
-        workingDirectory: response.workingDirectory)
-    }
-    return nil
-  }
-}
-
 extension BuildServerBuildSystem: BuildSystem {
+  public func settings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+    return buildSettings[document]
+  }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
@@ -230,7 +232,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
         // BuildServer registration failed, so tell our delegate that no build
         // settings are available.
-        self.delegate?.fileBuildSettingsChanged([uri: .removedOrUnavailable])
+        self.buildSettingsChanged(for: uri, settings: nil)
       }
     })
   }

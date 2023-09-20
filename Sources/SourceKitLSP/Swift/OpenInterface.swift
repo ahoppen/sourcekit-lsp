@@ -79,7 +79,7 @@ extension SwiftLanguageServer {
     }
     skreq[keys.name] = interfaceURI.pseudoPath
     skreq[keys.synthesizedextensions] = 1
-    if let compileCommand = self.commandsByFile[uri] {
+    if let compileCommand = self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
     

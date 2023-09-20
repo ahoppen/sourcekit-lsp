@@ -146,6 +146,20 @@ extension BuildSystemManager {
     set { queue.sync { _mainFilesProvider = newValue } }
   }
 
+  public func settings(for document: DocumentURI, language: Language) async -> FileBuildSettingsChange {
+    do {
+      // FIXME: (async) We shoudl only wait `fallbackSettingsTimeout` for build settings and return fallback afterwards
+      if let settings = try await buildSystem?.settings(for: document, language: language) {
+        return .modified(settings)
+      }
+    } catch {}
+    if let settings = fallbackBuildSystem?.settings(for: document, language: language) {
+      return .fallback(settings)
+    } else {
+      return .removedOrUnavailable
+    }
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     return queue.async {
       log("registerForChangeNotifications(\(uri.pseudoPath))")
@@ -222,7 +236,7 @@ extension BuildSystemManager {
     } else if let fallback = self.fallbackBuildSystem {
       // Only have a fallback build system. We consider it be a primary build
       // system that functions synchronously.
-      if let settings = fallback.settings(for: mainFile, language) {
+      if let settings = fallback.settings(for: mainFile, language: language) {
         newStatus = .primary(settings)
       } else {
         newStatus = .unsupported
@@ -283,7 +297,7 @@ extension BuildSystemManager {
     guard let status = self.mainFileStatuses[mainFile], status == .waiting else {
       return
     }
-    if let settings = fallback.settings(for: mainFile, language) {
+    if let settings = fallback.settings(for: mainFile, language: language) {
       self.updateAndNotifyStatuses(changes: [mainFile: .waitingUsingFallback(settings)])
     } else {
       // Keep the status as waiting.
@@ -335,7 +349,7 @@ extension BuildSystemManager: BuildSystemDelegate {
           // FIXME: we need to stop threading the language everywhere, or we need the build system
           // itself to pass it in here. Or alteratively cache the fallback settings/language earlier?
           let language = firstWatch.value.language
-          if let settings = fallback.settings(for: mainFile, language) {
+          if let settings = fallback.settings(for: mainFile, language: language) {
             newStatus = .fallback(settings)
           } else {
             newStatus = .unsupported
