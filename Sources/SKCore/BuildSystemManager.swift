@@ -180,10 +180,6 @@ extension BuildSystemManager {
     }
 
     let newStatus = await self.cachedStatusOrRegisterForSettings(for: mainFile, language: language)
-
-    if newStatus.buildSettingsChange != nil, let delegate = self._delegate {
-      await delegate.fileBuildSettingsChanged([uri])
-    }
   }
 
   /// Return settings for `file` based on  the `change` settings for `mainFile`.
@@ -326,10 +322,8 @@ extension BuildSystemManager {
 
 extension BuildSystemManager: BuildSystemDelegate {
 
-  public nonisolated func fileBuildSettingsChanged(_ changes: Set<DocumentURI>) {
-    Task {
-      await fileBuildSettingsChangedImpl(changes)
-    }
+  public func fileBuildSettingsChanged(_ changes: Set<DocumentURI>) async {
+    await fileBuildSettingsChangedImpl(changes)
   }
 
   public func fileBuildSettingsChangedImpl(_ changes: Set<DocumentURI>) async {
