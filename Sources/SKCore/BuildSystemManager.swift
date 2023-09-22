@@ -181,6 +181,21 @@ extension BuildSystemManager {
     }
   }
 
+  public func buildSettings(
+    ofMainFileFor document: DocumentURI,
+    language: Language
+  ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
+    if let mainFile = mainFilesProvider?.mainFilesContainingFile(document).first {
+      if let mainFileBuildSettings = await buildSettings(for: mainFile, language: language) {
+        return (
+          buildSettings: mainFileBuildSettings.buildSettings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath),
+          isFallback: mainFileBuildSettings.isFallback
+        )
+      }
+    }
+    return await buildSettings(for: document, language: language)
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     log("registerForChangeNotifications(\(uri.pseudoPath))")
     let mainFile: DocumentURI
