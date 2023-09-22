@@ -43,6 +43,10 @@ final class TestBuildSystem: BuildSystem {
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
+  func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+    return buildSettingsByFile[document]
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
 
@@ -194,7 +198,7 @@ final class BuildSystemTests: XCTestCase {
 
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
-    let args = FallbackBuildSystem(buildSetup: .default).settings(for: doc, .swift)!.compilerArguments
+    let args = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!.compilerArguments
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
@@ -307,7 +311,7 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI(url)
 
     // Primary settings must be different than the fallback settings.
-    var primarySettings = FallbackBuildSystem(buildSetup: .default).settings(for: doc, .swift)!
+    var primarySettings = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
     primarySettings.compilerArguments.append("-DPRIMARY")
 
     let text = """
