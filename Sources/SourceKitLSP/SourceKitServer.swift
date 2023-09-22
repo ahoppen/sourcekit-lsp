@@ -208,7 +208,7 @@ public actor SourceKitServer {
     self.client = client
   }
 
-  public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
+  public func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
     if workspaces.count == 1 {
       // Special handling: If there is only one workspace, open all files in it.
       // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
@@ -223,7 +223,7 @@ public actor SourceKitServer {
     // If there is a tie, use the workspace that occurred first in the list.
     var bestWorkspace: (workspace: Workspace?, fileHandlingCapability: FileHandlingCapability) = (nil, .unhandled)
     for workspace in workspaces {
-      let fileHandlingCapability = workspace.buildSystemManager.fileHandlingCapability(for: uri)
+      let fileHandlingCapability = await workspace.buildSystemManager.fileHandlingCapability(for: uri)
       if fileHandlingCapability > bestWorkspace.fileHandlingCapability {
         bestWorkspace = (workspace, fileHandlingCapability)
       }
@@ -240,7 +240,7 @@ public actor SourceKitServer {
     notificationHandler: @escaping (Notification<NotificationType>, ToolchainLanguageServer) async -> Void
   ) async {
     let doc = notification.params.textDocument.uri
-    guard let workspace = self.workspaceForDocument(uri: doc) else {
+    guard let workspace = await self.workspaceForDocument(uri: doc) else {
       return
     }
 
@@ -271,7 +271,7 @@ public actor SourceKitServer {
     fallback: RequestType.Response
   ) async {
     let doc = request.params.textDocument.uri
-    guard let workspace = self.workspaceForDocument(uri: doc) else {
+    guard let workspace = await self.workspaceForDocument(uri: doc) else {
       return request.reply(.failure(.workspaceNotOpen(doc)))
     }
 
@@ -350,7 +350,7 @@ public actor SourceKitServer {
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
   func reopenDocuments(for languageService: ToolchainLanguageServer) async {
     for documentUri in self.documentManager.openDocuments {
-      guard let workspace = self.workspaceForDocument(uri: documentUri) else {
+      guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
       guard workspace.documentService[documentUri] === languageService else {
@@ -562,13 +562,13 @@ extension SourceKitServer: MessageHandler {
     case let request as Request<ExecuteCommandRequest>:
       await self.executeCommand(request)
     case let request as Request<CallHierarchyIncomingCallsRequest>:
-      self.incomingCalls(request)
+      await self.incomingCalls(request)
     case let request as Request<CallHierarchyOutgoingCallsRequest>:
-      self.outgoingCalls(request)
+      await self.outgoingCalls(request)
     case let request as Request<TypeHierarchySupertypesRequest>:
-      self.supertypes(request)
+      await self.supertypes(request)
     case let request as Request<TypeHierarchySubtypesRequest>:
-      self.subtypes(request)
+      await self.subtypes(request)
     case let request as Request<CompletionRequest>:
       await self.withReadyDocument(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
     case let request as Request<HoverRequest>:
@@ -687,7 +687,7 @@ extension SourceKitServer: BuildSystemDelegate {
       // opened it with the language service yet.
       guard self.documentManager.openDocuments.contains(uri) else { continue }
 
-      guard let workspace = self.workspaceForDocument(uri: uri) else {
+      guard let workspace = await self.workspaceForDocument(uri: uri) else {
         continue
       }
       guard self.documentsReady.contains(uri) else {
@@ -746,9 +746,9 @@ extension SourceKitServer: BuildSystemDelegate {
   public func filesDependenciesUpdatedImpl(_ changedFiles: Set<DocumentURI>) async {
     // Split the changedFiles into the workspaces they belong to.
     // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
-    let changedFilesAndWorkspace = changedFiles.map({
-      return (uri: $0, workspace: self.workspaceForDocument(uri: $0))
-    })
+    let changedFilesAndWorkspace = await changedFiles.asyncMap {
+      return (uri: $0, workspace: await self.workspaceForDocument(uri: $0))
+    }
     for workspace in self.workspaces {
       let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.workspace === workspace }).map(\.uri))
       if changedFilesForWorkspace.isEmpty {
@@ -787,12 +787,12 @@ extension SourceKitServer {
   // MARK: - General
 
   /// Creates a workspace at the given `uri`.
-  private func workspace(uri: DocumentURI) -> Workspace? {
+  private func createWorkspace(uri: DocumentURI) async -> Workspace? {
     guard let capabilityRegistry = capabilityRegistry else {
       log("Cannot open workspace before server is initialized")
       return nil
     }
-    return try? Workspace(
+    return try? await Workspace(
       documentManager: self.documentManager,
       rootUri: uri,
       capabilityRegistry: capabilityRegistry,
@@ -846,13 +846,13 @@ extension SourceKitServer {
     capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
 
     if let workspaceFolders = req.params.workspaceFolders {
-      self.workspaces.append(contentsOf: workspaceFolders.compactMap({ self.workspace(uri: $0.uri) }))
+      self.workspaces += await workspaceFolders.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
     } else if let uri = req.params.rootURI {
-      if let workspace = self.workspace(uri: uri) {
+      if let workspace = await self.createWorkspace(uri: uri) {
         self.workspaces.append(workspace)
       }
     } else if let path = req.params.rootPath {
-      if let workspace = self.workspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
+      if let workspace = await self.createWorkspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
         self.workspaces.append(workspace)
       }
     }
@@ -860,7 +860,7 @@ extension SourceKitServer {
     if self.workspaces.isEmpty {
       log("no workspace found", level: .warning)
 
-      let workspace = Workspace(
+      let workspace = await Workspace(
         documentManager: self.documentManager,
         rootUri: req.params.rootURI,
         capabilityRegistry: self.capabilityRegistry!,
@@ -868,8 +868,16 @@ extension SourceKitServer {
         buildSetup: self.options.buildSetup,
         underlyingBuildSystem: nil,
         index: nil,
-        indexDelegate: nil)
-      self.workspaces.append(workspace)
+        indexDelegate: nil
+      )
+
+      // Another workspace might have been added while we awaited the
+      // construction of the workspace above. If that race happened, just
+      // discard the workspace we created here since `workspaces` now isn't
+      // empty anymore.
+      if self.workspaces.isEmpty {
+        self.workspaces.append(workspace)
+      }
     }
 
     assert(!self.workspaces.isEmpty)
@@ -1079,7 +1087,7 @@ extension SourceKitServer {
 
   func openDocument(_ note: Notification<DidOpenTextDocumentNotification>) async {
     let uri = note.params.textDocument.uri
-    guard let workspace = workspaceForDocument(uri: uri) else {
+    guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received open notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
@@ -1116,7 +1124,7 @@ extension SourceKitServer {
 
   func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) async {
     let uri = note.params.textDocument.uri
-    guard let workspace = workspaceForDocument(uri: uri) else {
+    guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received close notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
@@ -1148,7 +1156,7 @@ extension SourceKitServer {
   func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) async {
     let uri = note.params.textDocument.uri
 
-    guard let workspace = workspaceForDocument(uri: uri) else {
+    guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received change notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
@@ -1182,9 +1190,19 @@ extension SourceKitServer {
   }
 
   func didChangeWorkspaceFolders(_ note: Notification<DidChangeWorkspaceFoldersNotification>) async {
+    // There is a theoretical race condition here: While we await in this function,
+    // the open documents or workspaces could have changed. Because of this,
+    // we might close a document in a workspace that is no longer responsible
+    // for it.
+    // In practice, it is fine: sourcekit-lsp will not handle any new messages
+    // while we are executing this function and thus there's no risk of
+    // documents or workspaces changing. To hit the race condition, you need
+    // to invoke the API of `SourceKitServer` directly and open documents
+    // while this function is executing. Even in such an API use case, hitting
+    // that race condition seems very unlikely.
     var preChangeWorkspaces: [DocumentURI: Workspace] = [:]
     for docUri in self.documentManager.openDocuments {
-      preChangeWorkspaces[docUri] = self.workspaceForDocument(uri: docUri)
+      preChangeWorkspaces[docUri] = await self.workspaceForDocument(uri: docUri)
     }
     if let removed = note.params.event.removed {
       self.workspaces.removeAll { workspace in
@@ -1194,7 +1212,7 @@ extension SourceKitServer {
       }
     }
     if let added = note.params.event.added {
-      let newWorkspaces = added.compactMap({ self.workspace(uri: $0.uri) })
+      let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
       for workspace in newWorkspaces {
         await workspace.buildSystemManager.setDelegate(self)
       }
@@ -1205,7 +1223,7 @@ extension SourceKitServer {
     // the old workspace and open it in the new workspace.
     for docUri in self.documentManager.openDocuments {
       let oldWorkspace = preChangeWorkspaces[docUri]
-      let newWorkspace = self.workspaceForDocument(uri: docUri)
+      let newWorkspace = await self.workspaceForDocument(uri: docUri)
       if newWorkspace !== oldWorkspace {
         guard let snapshot = documentManager.latestSnapshot(docUri) else {
           continue
@@ -1402,7 +1420,7 @@ extension SourceKitServer {
       req.reply(nil)
       return
     }
-    guard let workspace = workspaceForDocument(uri: uri) else {
+    guard let workspace = await workspaceForDocument(uri: uri) else {
       req.reply(.failure(.workspaceNotOpen(uri)))
       return
     }
@@ -1564,7 +1582,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) async {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     let callback = { (result: LSPResult<SymbolInfoRequest.Response>) -> Void in
       Task {
         // If this symbol is a module then generate a textual interface
@@ -1646,7 +1664,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) async {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
       let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
         var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
@@ -1669,7 +1687,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) async {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
       let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
         log("performing indexed jump-to-def with usr \(usr)")
@@ -1714,7 +1732,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) async {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
       // For call hierarchy preparation we only locate the definition
       let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
@@ -1745,7 +1763,7 @@ extension SourceKitServer {
   /// 
   /// - Parameter data: The opaque data structure to extract
   /// - Returns: The extracted data if successful or nil otherwise
-  private func extractCallHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
+  private nonisolated func extractCallHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
     guard case let .dictionary(data) = rawData,
           case let .string(uriString) = data["uri"],
           case let .string(usr) = data["usr"] else {
@@ -1757,9 +1775,9 @@ extension SourceKitServer {
     )
   }
 
-  func incomingCalls(_ req: Request<CallHierarchyIncomingCallsRequest>) {
+  func incomingCalls(_ req: Request<CallHierarchyIncomingCallsRequest>) async {
     guard let data = extractCallHierarchyItemData(req.params.item.data),
-          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+          let index = await self.workspaceForDocument(uri: data.uri)?.index else {
       req.reply([])
       return
     }
@@ -1787,9 +1805,9 @@ extension SourceKitServer {
     req.reply(calls)
   }
 
-  func outgoingCalls(_ req: Request<CallHierarchyOutgoingCallsRequest>) {
+  func outgoingCalls(_ req: Request<CallHierarchyOutgoingCallsRequest>) async {
     guard let data = extractCallHierarchyItemData(req.params.item.data),
-          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+          let index = await self.workspaceForDocument(uri: data.uri)?.index else {
       req.reply([])
       return
     }
@@ -1872,7 +1890,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) async {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    guard let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index else {
+    guard let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index else {
       req.reply([])
       return
     }
@@ -1907,7 +1925,7 @@ extension SourceKitServer {
   /// 
   /// - Parameter data: The opaque data structure to extract
   /// - Returns: The extracted data if successful or nil otherwise
-  private func extractTypeHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
+  private nonisolated func extractTypeHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
     guard case let .dictionary(data) = rawData,
           case let .string(uriString) = data["uri"],
           case let .string(usr) = data["usr"] else {
@@ -1919,9 +1937,9 @@ extension SourceKitServer {
     )
   }
 
-  func supertypes(_ req: Request<TypeHierarchySupertypesRequest>) {
+  func supertypes(_ req: Request<TypeHierarchySupertypesRequest>) async {
     guard let data = extractTypeHierarchyItemData(req.params.item.data),
-          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+          let index = await self.workspaceForDocument(uri: data.uri)?.index else {
       req.reply([])
       return
     }
@@ -1960,9 +1978,9 @@ extension SourceKitServer {
     req.reply(types)
   }
 
-  func subtypes(_ req: Request<TypeHierarchySubtypesRequest>) {
+  func subtypes(_ req: Request<TypeHierarchySubtypesRequest>) async {
     guard let data = extractTypeHierarchyItemData(req.params.item.data),
-          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+          let index = await self.workspaceForDocument(uri: data.uri)?.index else {
       req.reply([])
       return
     }

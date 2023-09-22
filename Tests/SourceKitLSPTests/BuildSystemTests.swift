@@ -37,6 +37,10 @@ final class TestBuildSystem: BuildSystem {
 
   weak var delegate: BuildSystemDelegate?
 
+  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
   /// Build settings by file.
   var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
@@ -103,7 +107,7 @@ final class BuildSystemTests: XCTestCase {
 
     let server = testServer.server!
 
-    self.workspace = Workspace(
+    self.workspace = await Workspace(
       documentManager: DocumentManager(),
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
