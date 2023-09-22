@@ -245,14 +245,7 @@ extension BuildSystemManager {
 }
 
 extension BuildSystemManager: BuildSystemDelegate {
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has ben asyncified
-  public nonisolated func fileBuildSettingsChanged(_ changes: Set<DocumentURI>) {
-    Task {
-      await fileBuildSettingsChangedImpl(changes)
-    }
-  }
-
-  public func fileBuildSettingsChangedImpl(_ changedFiles: Set<DocumentURI>) async {
+  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     var changedWatchedFiles = Set<DocumentURI>()
     for mainFile in changedFiles {
       let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
@@ -270,14 +263,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has ben asyncified
-  public nonisolated func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    Task {
-      await filesDependenciesUpdatedImpl(changedFiles)
-    }
-  }
-
-  public func filesDependenciesUpdatedImpl(_ changedFiles: Set<DocumentURI>) async {
+  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
     // Empty changes --> assume everything has changed.
     guard !changedFiles.isEmpty else {
       if let delegate = self._delegate {
@@ -294,27 +280,13 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has ben asyncified
-  public nonisolated func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    Task {
-      await buildTargetsChangedImpl(changes)
-    }
-  }
-
-  public func buildTargetsChangedImpl(_ changes: [BuildTargetEvent]) async {
+  public func buildTargetsChanged(_ changes: [BuildTargetEvent]) async {
     if let delegate = self._delegate {
       await delegate.buildTargetsChanged(changes)
     }
   }
 
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has ben asyncified
-  public nonisolated func fileHandlingCapabilityChanged() {
-    Task {
-      await fileHandlingCapabilityChangedImpl()
-    }
-  }
-
-  public func fileHandlingCapabilityChangedImpl() async {
+  public func fileHandlingCapabilityChanged() async {
     if let delegate = self._delegate {
       await delegate.fileHandlingCapabilityChanged()
     }
