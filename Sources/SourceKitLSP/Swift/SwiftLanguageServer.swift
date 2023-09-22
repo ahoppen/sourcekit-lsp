@@ -488,7 +488,7 @@ extension SwiftLanguageServer {
     self.updateSyntacticTokens(for: snapshot)
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     // We may not have a snapshot if this is called just before `openDocument`.
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       return

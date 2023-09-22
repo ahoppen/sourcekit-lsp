@@ -243,15 +243,9 @@ extension SwiftPMWorkspace {
     })
 
     guard let delegate = self.delegate else { return }
-    var changedFiles: [DocumentURI: FileBuildSettingsChange] = [:]
-    for (uri, language) in self.watchedFiles {
-      orLog {
-        if let settings = try self.buildSettings(for: uri, language: language) {
-          changedFiles[uri] = FileBuildSettingsChange(settings)
-        } else {
-          changedFiles[uri] = .removedOrUnavailable
-        }
-      }
+    var changedFiles = Set<DocumentURI>()
+    for (uri, _) in self.watchedFiles {
+      changedFiles.insert(uri)
     }
     await delegate.fileBuildSettingsChanged(changedFiles)
     await delegate.fileHandlingCapabilityChanged()
@@ -317,11 +311,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     } catch {
       log("error computing settings: \(error)")
     }
-    if let settings = settings {
-      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
-    } else {
-      await delegate.fileBuildSettingsChanged([uri: .removedOrUnavailable])
-    }
+    await delegate.fileBuildSettingsChanged([uri])
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
