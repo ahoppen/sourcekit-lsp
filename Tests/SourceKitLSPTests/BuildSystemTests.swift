@@ -60,8 +60,8 @@ final class TestBuildSystem: BuildSystem {
       return
     }
 
-    DispatchQueue.global().async {
-      delegate.fileBuildSettingsChanged([uri: .modified(settings)])
+    Task {
+      await delegate.fileBuildSettingsChanged([uri: .modified(settings)])
     }
   }
 
@@ -192,7 +192,7 @@ final class BuildSystemTests: XCTestCase {
       expectation.fulfill()
     }
 
-    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     try await fulfillmentOfOrThrow([expectation])
   }
@@ -249,7 +249,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     try await fulfillmentOfOrThrow([expectation])
   }
@@ -303,7 +303,7 @@ final class BuildSystemTests: XCTestCase {
       expectation.fulfill()
     }
 
-    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     try await fulfillmentOfOrThrow([expectation])
   }
@@ -359,7 +359,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 2)
       expectation.fulfill()
     }
-    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
+    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
 
     try await fulfillmentOfOrThrow([expectation])
   }
@@ -391,7 +391,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    buildSystem.delegate?.fileBuildSettingsChanged([doc: .removedOrUnavailable])
+    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .removedOrUnavailable])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
