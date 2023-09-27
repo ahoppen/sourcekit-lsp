@@ -45,6 +45,20 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The queue on which clangd calls us back.
   public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
+  /// The queue on which all messages that originate from clangd are handled.
+  ///
+  /// This includes requests and notifications sent *from* clangd and does not
+  /// include replies from clangd.
+  ///
+  /// This ensures that messages from the build server are handled in the order
+  /// they were received. Swift concurrency does not guarentee in-order
+  /// execution of tasks.
+  ///
+  /// Since we are blindly forwarding requests from clangd to the editor, we
+  /// cannot allow concurrent requests. This should be fine since the number of
+  /// requests and notifications sent from clangd to the client is quite small.
+  public let clangdMessageHandlingQueue = AsyncQueue(.serial)
+
   /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
   ///
   /// Used to send requests and notifications to the editor.
@@ -257,13 +271,15 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the editor.
-  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    switch params {
-    case let publishDiags as PublishDiagnosticsNotification:
-      await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-    default:
-      // We don't know how to handle any other notifications and ignore them.
-      break
+  nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    clangdMessageHandlingQueue.async(barrier: false) {
+      switch params {
+      case let publishDiags as PublishDiagnosticsNotification:
+        await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+      default:
+        // We don't know how to handle any other notifications and ignore them.
+        break
+      }
     }
   }
 
@@ -271,26 +287,24 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the client.
-  func handle<R: RequestType>(
+  nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
-  ) async {
-    let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
-      reply(result)
-    })
-    guard let sourceKitServer else {
-      // `SourceKitServer` has been destructed. We are tearing down the language
-      // server. Nothing left to do.
-      request.reply(.failure(.unknown("Connection to the editor closed")))
-      return
-    }
+  ) {
+    clangdMessageHandlingQueue.async {
+      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
+        reply(result)
+      })
+      guard let sourceKitServer = await self.sourceKitServer else {
+        // `SourceKitServer` has been destructed. We are tearing down the language
+        // server. Nothing left to do.
+        request.reply(.failure(.unknown("Connection to the editor closed")))
+        return
+      }
 
-    if request.clientID == ObjectIdentifier(self.clangd) {
       await sourceKitServer.sendRequestToClient(request.params, reply: request.reply)
-    } else {
-      request.reply(.failure(ResponseError.methodNotFound(R.method)))
     }
   }
 
