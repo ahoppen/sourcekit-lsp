@@ -269,6 +269,32 @@ public actor SourceKitServer {
     await requestHandler(request, workspace, languageService)
   }
 
+  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
+    for request: Request<RequestType>,
+    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
+    fallback: RequestType.Response
+  ) async {
+    let doc = request.params.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: doc) else {
+      return request.reply(.failure(.workspaceNotOpen(doc)))
+    }
+
+    // This should be created as soon as we receive an open call, even if the document
+    // isn't yet ready.
+    guard let languageService = workspace.documentService[doc] else {
+      return request.reply(fallback)
+    }
+
+    do {
+      let result = try await requestHandler(request.params, workspace, languageService)
+      request.reply(.success(result))
+    } catch let error as ResponseError {
+      request.reply(.failure(error))
+    } catch {
+      request.reply(.failure(.unknown("Unknown error: \(error)")))
+    }
+  }
+
 
   /// Send the given notification to the editor.
   public func sendNotificationToClient(_ notification: some NotificationType) {
@@ -1225,10 +1251,11 @@ extension SourceKitServer {
   }
 
   func foldingRange(
-    _ req: Request<FoldingRangeRequest>,
+    _ req: FoldingRangeRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer) async {
-    await languageService.foldingRange(req)
+    languageService: ToolchainLanguageServer
+  ) async throws -> [FoldingRange]? {
+    return try await languageService.foldingRange(req)
   }
 
   func documentSymbol(
@@ -1294,13 +1321,6 @@ extension SourceKitServer {
       return
     }
 
-    await self.fowardExecuteCommand(req, languageService: languageService)
-  }
-
-  func fowardExecuteCommand(
-    _ req: Request<ExecuteCommandRequest>,
-    languageService: ToolchainLanguageServer
-  ) async {
     let params = req.params
     let executeCommand = ExecuteCommandRequest(command: params.command,
                                                arguments: params.argumentsWithoutSourceKitMetadata)

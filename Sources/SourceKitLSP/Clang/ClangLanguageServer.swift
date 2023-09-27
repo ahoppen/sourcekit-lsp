@@ -322,6 +322,27 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     }
   }
   
+  /// Forward the given request to `clangd`.
+  ///
+  /// This method calls `readyToHandleNextRequest` once the request has been
+  /// transmitted to `clangd` and another request can be safely transmitted to
+  /// `clangd` while guaranteeing ordering.
+  ///
+  /// The response of the request is  returned asynchronously as the return value.
+  func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
+    try await withCheckedThrowingContinuation { continuation in
+      _ = clangd.send(request, queue: clangdCommunicationQueue) { result in
+        switch result {
+        case .success(let response):
+          continuation.resume(returning: response)
+        case .failure(let error):
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+    // FIXME: (async) Cancellation
+  }
+
   func _crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
 #if os(Windows)
@@ -551,11 +572,11 @@ extension ClangLanguageServerShim {
     forwardRequestToClangd(req)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>) {
+  func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     if self.capabilities?.foldingRangeProvider?.isSupported == true {
-      forwardRequestToClangd(req)
+      return try await forwardRequestToClangd(req)
     } else {
-      req.reply(.success(nil))
+      return nil
     }
   }
 
