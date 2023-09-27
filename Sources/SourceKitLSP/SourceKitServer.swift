@@ -271,16 +271,6 @@ public actor SourceKitServer {
   }
 
 
-  public func _handleUnknown<R>(_ req: Request<R>) {
-    if req.clientID == ObjectIdentifier(client) {
-      req.reply(.failure(ResponseError.methodNotFound(R.method)))
-      return
-    }
-
-    // Unknown requests from a language server are passed on to the client.
-    sendRequestToClient(req.params, reply: req.reply)
-  }
-
   /// Send the given notification to the editor.
   public func sendNotificationToClient(_ notification: some NotificationType) {
     client.send(notification)
@@ -295,16 +285,6 @@ public actor SourceKitServer {
       reply(result)
     }
     // FIXME: (async) Handle cancellation
-  }
-
-  /// Handle an unknown notification.
-  public func _handleUnknown<N>(_ note: Notification<N>) {
-    if note.clientID == ObjectIdentifier(client) {
-      return
-    }
-
-    // Unknown notifications from a language server are passed on to the client.
-    client.send(note.params)
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
@@ -509,7 +489,7 @@ extension SourceKitServer: MessageHandler {
     case let notification as Notification<DidSaveTextDocumentNotification>:
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
     default:
-      self._handleUnknown(notification)
+      break
     }
   }
 
@@ -597,7 +577,7 @@ extension SourceKitServer: MessageHandler {
     case let request as Request<DocumentDiagnosticsRequest>:
       await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
     default:
-      self._handleUnknown(request)
+      reply(.failure(ResponseError.methodNotFound(R.method)))
     }
   }
 
