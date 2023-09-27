@@ -30,7 +30,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   // MARK: - Creation
 
   init?(
-    client: LocalConnection,
+    sourceKitServer: SourceKitServer,
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,

@@ -45,10 +45,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The queue on which clangd calls us back.
   public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
-  /// The connection to the client. In the case of `ClangLanguageServerShim`,
-  /// the client is always a ``SourceKitServer``, which will forward the request
-  /// to the editor.
-  public let client: Connection
+  /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
+  ///
+  /// Used to send requests and notifications to the editor.
+  private weak var sourceKitServer: SourceKitServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: Connection!
@@ -110,7 +110,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
   public init?(
-    client: LocalConnection,
+    sourceKitServer: SourceKitServer,
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
@@ -126,7 +126,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     self.workspace = WeakWorkspace(workspace)
     self.reopenDocuments = reopenDocuments
     self.state = .connected
-    self.client = client
+    self.sourceKitServer = sourceKitServer
     try startClangdProcesss()
   }
 
@@ -256,12 +256,14 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Handler for notifications received **from** clangd, ie. **clangd** is
   /// sending a notification that's intended for the editor.
   ///
-  /// We should either handle it ourselves or forward it to the client.
+  /// We should either handle it ourselves or forward it to the editor.
   func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    if let publishDiags = params as? PublishDiagnosticsNotification {
+    switch params {
+    case let publishDiags as PublishDiagnosticsNotification:
       await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-    } else if clientID == ObjectIdentifier(self.clangd) {
-      self.client.send(params)
+    default:
+      // We don't know how to handle any other notifications and ignore them.
+      break
     }
   }
 
@@ -274,13 +276,19 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     id: RequestID,
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
-  ) {
+  ) async {
     let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
       reply(result)
     })
+    guard let sourceKitServer else {
+      // `SourceKitServer` has been destructed. We are tearing down the language
+      // server. Nothing left to do.
+      request.reply(.failure(.unknown("Connection to the editor closed")))
+      return
+    }
 
     if request.clientID == ObjectIdentifier(self.clangd) {
-      self.forwardRequest(request, to: self.client)
+      await sourceKitServer.sendRequestToClient(request.params, reply: request.reply)
     } else {
       request.reply(.failure(ResponseError.methodNotFound(R.method)))
     }
@@ -356,10 +364,15 @@ extension ClangLanguageServerShim {
     let buildSettings = await self.buildSettings(for: params.uri)
     if buildSettings?.isFallback ?? true {
       // Fallback: send empty publish notification instead.
-      client.send(PublishDiagnosticsNotification(
-        uri: params.uri, version: params.version, diagnostics: []))
+      await sourceKitServer?.sendNotificationToClient(
+        PublishDiagnosticsNotification(
+          uri: params.uri,
+          version: params.version,
+          diagnostics: []
+        )
+      )
     } else {
-      client.send(note.params)
+      await sourceKitServer?.sendNotificationToClient(note.params)
     }
   }
 
@@ -388,9 +401,6 @@ extension ClangLanguageServerShim {
         guard let self else { return }
         Task {
           await self.clangd.send(ExitNotification())
-          if let localConnection = self.client as? LocalConnection {
-            localConnection.close()
-          }
           continuation.resume()
         }
       }
