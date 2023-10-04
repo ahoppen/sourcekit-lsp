@@ -525,9 +525,7 @@ extension SourceKitServer: MessageHandler {
       let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
         reply(result)
         if let self {
-          Task {
-            await self._logResponse(result, id: id, method: R.method)
-          }
+          self._logResponse(result, id: id, method: R.method)
         }
       })
 
@@ -628,7 +626,7 @@ extension SourceKitServer: MessageHandler {
     }
   }
 
-  private func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
+  private nonisolated func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
     logAsync { currentLevel in
       guard currentLevel >= LogLevel.debug else {
         return "\(type(of: self)): Response<\(method)(\(id))>"

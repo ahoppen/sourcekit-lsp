@@ -208,6 +208,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       return
     }
     if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
+      // Send a request to the client to request tokens.
+      // We don't actually care about the response, so execute it on a different
+      // task.
       Task {
         do {
           _ = try await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest())
