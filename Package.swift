@@ -198,6 +198,7 @@ let package = Package(
       .target(
         name: "LanguageServerProtocol",
         dependencies: [
+          "SKSupport",
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ],
         exclude: ["CMakeLists.txt"]),

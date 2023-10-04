@@ -379,4 +379,33 @@ final class SKTests: XCTestCase {
       }
     }
   }
+
+  func testCancellation() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "Cancellation") else { return }
+    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
+
+    let slowLoc = ws.testLoc("slowLoc")
+    let fastLoc = ws.testLoc("fastLoc")
+
+    try ws.openDocument(slowLoc.url, language: .swift)
+
+    let completionRequestReplied = self.expectation(description: "completion request replied")
+
+    let slowRequestID = ws.sk.send(CompletionRequest(textDocument: slowLoc.docIdentifier, position: slowLoc.position)) { reply in
+      switch reply {
+      case .success:
+        XCTFail("Expected completion request to fail because it was cancelled")
+      case .failure(let error):
+        XCTAssertEqual(error, ResponseError.cancelled)
+      }
+      completionRequestReplied.fulfill()
+    }
+    ws.sk.send(CancelRequestNotification(id: slowRequestID))
+
+    try await fulfillmentOfOrThrow([completionRequestReplied])
+
+    let fastReply = try ws.sk.sendSync(CompletionRequest(textDocument: fastLoc.docIdentifier, position: fastLoc.position))
+    print(fastReply)
+    XCTAssert(!fastReply.items.isEmpty)
+  }
 }

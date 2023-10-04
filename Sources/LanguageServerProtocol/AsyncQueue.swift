@@ -87,7 +87,7 @@ public final class AsyncQueue {
     let throwingTask = asyncThrowing(priority: priority, barrier: isBarrier, operation: operation)
     return Task {
       do {
-        return try await throwingTask.value
+        return try await throwingTask.valuePropagatingCancellation
       } catch {
         // We know this can never happen because `operation` does not throw.
         preconditionFailure("Executing a task threw an error even though the operation did not throw")

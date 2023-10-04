@@ -84,30 +84,38 @@ extension SourceKitD {
   public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
     logRequest(req)
 
-    return try await withCheckedThrowingContinuation { continuation in
-      var handle: sourcekitd_request_handle_t? = nil
+    let handleWrapper = ThreadSafeBox<sourcekitd_request_handle_t?>(initialValue: nil as sourcekitd_request_handle_t?)
 
-      api.send_request(req.dict, &handle) { [weak self] _resp in
-        guard let self = self else { return }
+    return try await withTaskCancellationHandler {
+      try Task.checkCancellation()
+      return try await withCheckedThrowingContinuation { continuation in
+        var handle: sourcekitd_request_handle_t?
+        api.send_request(req.dict, &handle) { [weak self] _resp in
+          guard let self = self else { return }
 
-        let resp = SKDResponse(_resp, sourcekitd: self)
+          let resp = SKDResponse(_resp, sourcekitd: self)
 
-        logResponse(resp)
+          if Task.isCancelled {
+            continuation.resume(throwing: CancellationError())
+            return
+          }
 
-        guard let dict = resp.value else {
-          continuation.resume(throwing: resp.error!)
-          return
+          logResponse(resp)
+
+          guard let dict = resp.value else {
+            continuation.resume(throwing: resp.error!)
+            return
+          }
+
+          continuation.resume(returning: dict)
         }
-
-        continuation.resume(returning: dict)
+        handleWrapper.value = handle
       }
-
-      // FIXME: (async) Cancellation
+    } onCancel: {
+      if let handle = handleWrapper.value {
+        api.cancel_request(handle)
+      }
     }
-  }
-
-  public func cancel(_ handle: sourcekitd_request_handle_t) {
-    api.cancel_request(handle)
   }
 }
 

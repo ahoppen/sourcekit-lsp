@@ -81,7 +81,11 @@ actor CodeCompletionSession {
         return try await self.updateImpl(filterText: filterText, position: position, in: snapshot, options: options)
       }
     }
-    return try await task.value
+    return try await withTaskCancellationHandler {
+      return try await task.value
+    } onCancel: {
+      task.cancel()
+    }
   }
 
   private func open(

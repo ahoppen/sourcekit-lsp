@@ -144,6 +144,12 @@ public actor SourceKitServer {
   /// The actual semantic handling of the message happens off this queue.
   private let messageHandlingQueue = AsyncQueue(.concurrent)
 
+  /// The queue on which we start and stop keeping track of cancellation.
+  ///
+  /// Having a queue for this ensures that we started keeping track of a
+  /// request's task before handling any cancellation request for it.
+  private let cancellationMessageHandlingQueue = AsyncQueue(.serial)
+
   /// The connection to the editor.
   public let client: Connection
 
@@ -182,6 +188,17 @@ public actor SourceKitServer {
     set {
       self.workspaces = newValue
     }
+  }
+
+  /// The requests that we are currently handling.
+  ///
+  /// Used to cancel the tasks if the client requests cancellation.
+  private var inProgressRequests: [RequestID: Task<(), Never>] = [:]
+
+  /// - Note: Needed so we can set an in-progress request from a different
+  ///   isolation context.
+  private func setInProgressRequest(for id: RequestID, task: Task<(), Never>?) {
+    self.inProgressRequests[id] = task
   }
 
   let fs: FileSystem
@@ -275,12 +292,7 @@ public actor SourceKitServer {
 
   /// Send the given request to the editor.
   public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
-    try await withCheckedThrowingContinuation { continuation in
-      _ = client.send(request) { result in
-        continuation.resume(with: result)
-      }
-      // FIXME: (async) Handle cancellation
-    }
+    return try await client.send(request)
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
@@ -450,7 +462,14 @@ public actor SourceKitServer {
 
 extension SourceKitServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    // All of the notifications sourcekit-lsp currently handles might modify the
+    if let params = params as? CancelRequestNotification {
+      // Request cancellation needs to be able to overtake any other message we
+      // are currently handling. Ordering is not important here. We thus don't
+      // need to execute it on `messageHandlingQueue`.
+      self.cancelRequest(params)
+    }
+
+    // All of the other notifications sourcekit-lsp currently handles might modify the
     // global state (eg. whether a document is open or its contents) in a way
     // that changes the results of requsts before and after.
     // We thus need to ensure that we handle the notifications in order, so they
@@ -458,20 +477,17 @@ extension SourceKitServer: MessageHandler {
     //
     // Technically, we could optimize this further by having an `AsyncQueue` for
     // each file, because edits on one file should not block requests on another
-    // file from executing but, at least in Swift, this would get us any real 
+    // file from executing but, at least in Swift, this would get us any real
     // benefits at the moment because sourcekitd only has a single, global queue,
     // instead of a queue per file.
     // Additionally, usually you are editing one file in a source editor, which
     // means that concurrent requests to multiple files tend to be rare.
     messageHandlingQueue.async(barrier: true) {
-      let notification = Notification(params, clientID: clientID)
-      await self._logNotification(notification)
+      await self._logNotification(Notification(params, clientID: clientID))
 
-      switch notification.params {
+      switch params {
       case let notification as InitializedNotification:
         await self.clientInitialized(notification)
-      case let notification as CancelRequestNotification:
-        await self.cancelRequest(notification)
       case let notification as ExitNotification:
         await self.exit(notification)
       case let notification as DidOpenTextDocumentNotification:
@@ -503,7 +519,7 @@ extension SourceKitServer: MessageHandler {
     //    completion session but it only makes sense for the client to request
     //    more results for this completion session after it has received the
     //    initial results.
-    messageHandlingQueue.async(barrier: false) {
+    let task = messageHandlingQueue.async(barrier: false) {
       let cancellationToken = CancellationToken()
 
       let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
@@ -581,6 +597,16 @@ extension SourceKitServer: MessageHandler {
       default:
         reply(.failure(ResponseError.methodNotFound(R.method)))
       }
+      self.cancellationMessageHandlingQueue.async {
+        // We have handled the request and can't cancel it anymore.
+        // Stop keeping track of it to free the memory.
+        await self.setInProgressRequest(for: id, task: nil)
+      }
+    }
+    // Start tracking the request with a high priority to minimize the chance
+    // of cancellation
+    cancellationMessageHandlingQueue.async {
+      await self.setInProgressRequest(for: id, task: task)
     }
   }
 
@@ -910,8 +936,16 @@ extension SourceKitServer {
     // Nothing to do.
   }
 
-  func cancelRequest(_ notification: CancelRequestNotification) {
-    // TODO: Implement cancellation
+  nonisolated func cancelRequest(_ notification: CancelRequestNotification) {
+    // Since the request is very cheap to execute and stops other requests
+    // from performing more work, we execute it with a high priority.
+    cancellationMessageHandlingQueue.async(priority: .high) {
+      guard let task = await self.inProgressRequests[notification.id] else {
+        log("Cannot cancel task because it hasn't been scheduled for execution yet", level: .warning)
+        return
+      }
+      task.cancel()
+    }
   }
 
   /// The server is about to exit, and the server should flush any buffered state.
