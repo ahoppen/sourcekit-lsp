@@ -461,7 +461,7 @@ public actor SourceKitServer {
 // MARK: - MessageHandler
 
 extension SourceKitServer: MessageHandler {
-  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public nonisolated func handle(_ params: some NotificationType) {
     if let params = params as? CancelRequestNotification {
       // Request cancellation needs to be able to overtake any other message we
       // are currently handling. Ordering is not important here. We thus don't
@@ -483,7 +483,7 @@ extension SourceKitServer: MessageHandler {
     // Additionally, usually you are editing one file in a source editor, which
     // means that concurrent requests to multiple files tend to be rare.
     messageHandlingQueue.async(barrier: true) {
-      await self._logNotification(Notification(params, clientID: clientID))
+      await self._logNotification(Notification(params))
 
       switch params {
       case let notification as InitializedNotification:
@@ -510,7 +510,7 @@ extension SourceKitServer: MessageHandler {
     }
   }
 
-  public nonisolated func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
+  public nonisolated func handle<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response >) -> Void) {
     // All of the requests sourcekit-lsp do not modify global state or require
     // the client to wait for the result before using the modified global state.
     // For example
@@ -520,7 +520,7 @@ extension SourceKitServer: MessageHandler {
     //    more results for this completion session after it has received the
     //    initial results.
     let task = messageHandlingQueue.async(barrier: false) {
-      let request = Request(params, id: id, clientID: clientID, reply: { [weak self] result in
+      let request = Request(params, id: id, reply: { [weak self] result in
         reply(result)
         if let self {
           self._logResponse(result, id: id, method: R.method)

@@ -261,11 +261,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the editor.
-  nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  nonisolated func handle(_ params: some NotificationType) {
     clangdMessageHandlingQueue.async {
       switch params {
       case let publishDiags as PublishDiagnosticsNotification:
-        await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+        await self.publishDiagnostics(Notification(publishDiags))
       default:
         // We don't know how to handle any other notifications and ignore them.
         log("Ignoring unknown notification \(type(of: params))", level: .warning)
@@ -281,11 +281,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     clangdMessageHandlingQueue.async {
-      let request = Request(params, id: id, clientID: clientID, reply: { result in
+      let request = Request(params, id: id, reply: { result in
         reply(result)
       })
       guard let sourceKitServer = await self.sourceKitServer else {

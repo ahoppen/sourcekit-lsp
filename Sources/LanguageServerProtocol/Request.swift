@@ -20,9 +20,6 @@ public final class Request<R: RequestType> {
   /// The request id from the client.
   public let id: RequestID
 
-  /// The client of the request.
-  public let clientID: ObjectIdentifier
-
   /// The request parameters.
   public let params: Params
 
@@ -35,9 +32,8 @@ public final class Request<R: RequestType> {
     }
   }
 
-  public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, reply: @escaping (LSPResult<Response>) -> Void) {
+  public init(_ request: Params, id: RequestID, reply: @escaping (LSPResult<Response>) -> Void) {
     self.id = id
-    self.clientID = clientID
     self.params = request
     self.replyBlock = reply
   }
@@ -65,14 +61,10 @@ public final class Notification<N: NotificationType> {
 
   public typealias Params = N
 
-  /// The client of the request.
-  public let clientID: ObjectIdentifier
-
   /// The request parameters.
   public let params: Params
 
-  public init(_ notification: Params, clientID: ObjectIdentifier) {
-    self.clientID = clientID
+  public init(_ notification: Params) {
     self.params = notification
   }
 }
@@ -82,7 +74,6 @@ extension Request: CustomStringConvertible {
     return """
     Request<\(R.method)>(
       id: \(id),
-      clientID: \(clientID),
       params: \(params)
     )
     """
@@ -93,7 +84,6 @@ extension Notification: CustomStringConvertible {
   public var description: String {
     return """
     Notification<\(N.method)>(
-      clientID: \(clientID),
       params: \(params)
     )
     """

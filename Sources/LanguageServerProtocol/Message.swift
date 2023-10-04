@@ -55,7 +55,7 @@ extension RequestType {
     connection: Connection,
     reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
   ) {
-    handler.handle(self, id: id, from: ObjectIdentifier(connection)) { response in
+    handler.handle(self, id: id) { response in
       reply(response.map({ $0 as ResponseType }), id)
     }
   }
@@ -63,7 +63,7 @@ extension RequestType {
 
 extension NotificationType {
   public func _handle(_ handler: MessageHandler, connection: Connection) {
-    handler.handle(self, from: ObjectIdentifier(connection))
+    handler.handle(self)
   }
 }
 

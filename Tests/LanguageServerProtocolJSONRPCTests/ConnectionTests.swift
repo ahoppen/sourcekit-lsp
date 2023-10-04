@@ -258,8 +258,8 @@ class ConnectionTests: XCTestCase {
         outFD: from.fileHandleForWriting)
 
       final class DummyHandler: MessageHandler {
-        func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
-        func handle<R: RequestType>(_: R, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {}
+        func handle(_: some NotificationType) {}
+        func handle<R: RequestType>(_: R, id: RequestID, reply: @escaping (LSPResult<R.Response>) -> Void) {}
       }
 
       conn.start(receiveHandler: DummyHandler(), closeHandler: {

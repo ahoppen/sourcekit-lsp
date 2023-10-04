@@ -124,8 +124,8 @@ public final class TestClient: MessageHandler {
     appendOneShotRequestHandler(handler)
   }
 
-  public func handle<N>(_ params: N, from clientID: ObjectIdentifier) where N: NotificationType {
-    let notification = Notification(params, clientID: clientID)
+  public func handle<N>(_ params: N) where N: NotificationType {
+    let notification = Notification(params)
 
     guard !oneShotNotificationHandlers.isEmpty else {
       if allowUnexpectedNotification { return }
@@ -135,8 +135,8 @@ public final class TestClient: MessageHandler {
     handler(notification)
   }
 
-  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {
-    let request = Request(params, id: id, clientID: clientID, reply: reply)
+  public func handle<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response>) -> Void) {
+    let request = Request(params, id: id, reply: reply)
 
     guard !oneShotRequestHandlers.isEmpty else {
       fatalError("unexpected request \(request)")
@@ -216,8 +216,8 @@ public final class TestServer: MessageHandler {
     self.client = client
   }
 
-  public func handle<N: NotificationType>(_ params: N, from clientID: ObjectIdentifier) {
-    let note = Notification(params, clientID: clientID)
+  public func handle<N: NotificationType>(_ params: N) {
+    let note = Notification(params)
     if params is EchoNotification {
       self.client.send(note.params)
     } else {
@@ -225,14 +225,14 @@ public final class TestServer: MessageHandler {
     }
   }
 
-  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
+  public func handle<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response >) -> Void) {
     if let params = params as? EchoRequest {
-      let req = Request(params, id: id, clientID: clientID, reply: { result in
+      let req = Request(params, id: id, reply: { result in
         reply(result.map({ $0 as! R.Response }))
       })
       req.reply(req.params.string)
     } else if let params = params as? EchoError {
-      let req = Request(params, id: id, clientID: clientID, reply: { result in
+      let req = Request(params, id: id, reply: { result in
         reply(result.map({ $0 as! R.Response }))
       })
       if let code = req.params.code {
