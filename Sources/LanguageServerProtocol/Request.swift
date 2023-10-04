@@ -35,14 +35,10 @@ public final class Request<R: RequestType> {
     }
   }
 
-  /// The request's cancellation state.
-  public let cancellationToken: CancellationToken
-
-  public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, cancellation: CancellationToken, reply: @escaping (LSPResult<Response>) -> Void) {
+  public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, reply: @escaping (LSPResult<Response>) -> Void) {
     self.id = id
     self.clientID = clientID
     self.params = request
-    self.cancellationToken = cancellation
     self.replyBlock = reply
   }
 
@@ -62,9 +58,6 @@ public final class Request<R: RequestType> {
   public func reply(_ result: Response) {
     reply(.success(result))
   }
-
-  /// Whether the result has been cancelled.
-  public var isCancelled: Bool { return cancellationToken.isCancelled }
 }
 
 /// A request object, wrapping the parameters of a `NotificationType`.

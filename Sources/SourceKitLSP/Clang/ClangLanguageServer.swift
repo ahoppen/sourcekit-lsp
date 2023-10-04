@@ -285,7 +285,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     clangdMessageHandlingQueue.async {
-      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
+      let request = Request(params, id: id, clientID: clientID, reply: { result in
         reply(result)
       })
       guard let sourceKitServer = await self.sourceKitServer else {

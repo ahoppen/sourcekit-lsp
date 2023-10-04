@@ -520,9 +520,7 @@ extension SourceKitServer: MessageHandler {
     //    more results for this completion session after it has received the
     //    initial results.
     let task = messageHandlingQueue.async(barrier: false) {
-      let cancellationToken = CancellationToken()
-
-      let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
+      let request = Request(params, id: id, clientID: clientID, reply: { [weak self] result in
         reply(result)
         if let self {
           self._logResponse(result, id: id, method: R.method)

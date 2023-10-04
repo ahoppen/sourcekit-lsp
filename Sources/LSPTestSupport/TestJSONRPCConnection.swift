@@ -136,9 +136,7 @@ public final class TestClient: MessageHandler {
   }
 
   public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {
-    let cancellationToken = CancellationToken()
-
-    let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: reply)
+    let request = Request(params, id: id, clientID: clientID, reply: reply)
 
     guard !oneShotRequestHandlers.isEmpty else {
       fatalError("unexpected request \(request)")
@@ -228,15 +226,13 @@ public final class TestServer: MessageHandler {
   }
 
   public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
-    let cancellationToken = CancellationToken()
-
     if let params = params as? EchoRequest {
-      let req = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { result in
+      let req = Request(params, id: id, clientID: clientID, reply: { result in
         reply(result.map({ $0 as! R.Response }))
       })
       req.reply(req.params.string)
     } else if let params = params as? EchoError {
-      let req = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { result in
+      let req = Request(params, id: id, clientID: clientID, reply: { result in
         reply(result.map({ $0 as! R.Response }))
       })
       if let code = req.params.code {
