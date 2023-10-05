@@ -510,7 +510,7 @@ extension SourceKitServer: MessageHandler {
     }
   }
 
-  public nonisolated func handle<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response >) -> Void) {
+  public nonisolated func handle<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response>) -> Void) {
     // All of the requests sourcekit-lsp do not modify global state or require
     // the client to wait for the result before using the modified global state.
     // For example
@@ -520,89 +520,93 @@ extension SourceKitServer: MessageHandler {
     //    more results for this completion session after it has received the
     //    initial results.
     let task = messageHandlingQueue.async(barrier: false) {
-      let request = Request(params, id: id, reply: { [weak self] result in
-        reply(result)
-        if let self {
-          self._logResponse(result, id: id, method: R.method)
-        }
-      })
-
-      self._logRequest(request)
-
-      switch request {
-      case let request as Request<InitializeRequest>:
-        await self.handleRequest(request, handler: self.initialize)
-      case let request as Request<ShutdownRequest>:
-        await self.handleRequest(request, handler: self.shutdown)
-      case let request as Request<WorkspaceSymbolsRequest>:
-        await self.handleRequest(request, handler: self.workspaceSymbols)
-      case let request as Request<PollIndexRequest>:
-        await self.handleRequest(request, handler: self.pollIndex)
-      case let request as Request<ExecuteCommandRequest>:
-        await self.handleRequest(request, handler: self.executeCommand)
-      case let request as Request<CallHierarchyIncomingCallsRequest>:
-        await self.handleRequest(request, handler: self.incomingCalls)
-      case let request as Request<CallHierarchyOutgoingCallsRequest>:
-        await self.handleRequest(request, handler: self.outgoingCalls)
-      case let request as Request<TypeHierarchySupertypesRequest>:
-        await self.handleRequest(request, handler: self.supertypes)
-      case let request as Request<TypeHierarchySubtypesRequest>:
-        await self.handleRequest(request, handler: self.subtypes)
-      case let request as Request<CompletionRequest>:
-        await self.handleRequest(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
-      case let request as Request<HoverRequest>:
-        await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
-      case let request as Request<OpenInterfaceRequest>:
-        await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
-      case let request as Request<DeclarationRequest>:
-        await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
-      case let request as Request<DefinitionRequest>:
-        await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
-      case let request as Request<ReferencesRequest>:
-        await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
-      case let request as Request<ImplementationRequest>:
-        await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
-      case let request as Request<CallHierarchyPrepareRequest>:
-        await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
-      case let request as Request<TypeHierarchyPrepareRequest>:
-        await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
-      case let request as Request<SymbolInfoRequest>:
-        await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
-      case let request as Request<DocumentHighlightRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
-      case let request as Request<FoldingRangeRequest>:
-        await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
-      case let request as Request<DocumentSymbolRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
-      case let request as Request<DocumentColorRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
-      case let request as Request<DocumentSemanticTokensRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
-      case let request as Request<DocumentSemanticTokensDeltaRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
-      case let request as Request<DocumentSemanticTokensRangeRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
-      case let request as Request<ColorPresentationRequest>:
-        await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
-      case let request as Request<CodeActionRequest>:
-        await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
-      case let request as Request<InlayHintRequest>:
-        await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
-      case let request as Request<DocumentDiagnosticsRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
-      default:
-        reply(.failure(ResponseError.methodNotFound(R.method)))
-      }
-      self.cancellationMessageHandlingQueue.async {
-        // We have handled the request and can't cancel it anymore.
-        // Stop keeping track of it to free the memory.
-        await self.setInProgressRequest(for: id, task: nil)
-      }
+      await self.handleImpl(params, id: id, reply: reply)
     }
     // Start tracking the request with a high priority to minimize the chance
     // of cancellation
     cancellationMessageHandlingQueue.async {
       await self.setInProgressRequest(for: id, task: task)
+    }
+  }
+
+  private nonisolated func handleImpl<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response>) -> Void) async {
+    let request = Request(params, id: id, reply: { [weak self] result in
+      reply(result)
+      if let self {
+        self._logResponse(result, id: id, method: R.method)
+      }
+    })
+
+    self._logRequest(request)
+
+    switch request {
+    case let request as Request<InitializeRequest>:
+      await self.handleRequest(request, handler: self.initialize)
+    case let request as Request<ShutdownRequest>:
+      await self.handleRequest(request, handler: self.shutdown)
+    case let request as Request<WorkspaceSymbolsRequest>:
+      await self.handleRequest(request, handler: self.workspaceSymbols)
+    case let request as Request<PollIndexRequest>:
+      await self.handleRequest(request, handler: self.pollIndex)
+    case let request as Request<ExecuteCommandRequest>:
+      await self.handleRequest(request, handler: self.executeCommand)
+    case let request as Request<CallHierarchyIncomingCallsRequest>:
+      await self.handleRequest(request, handler: self.incomingCalls)
+    case let request as Request<CallHierarchyOutgoingCallsRequest>:
+      await self.handleRequest(request, handler: self.outgoingCalls)
+    case let request as Request<TypeHierarchySupertypesRequest>:
+      await self.handleRequest(request, handler: self.supertypes)
+    case let request as Request<TypeHierarchySubtypesRequest>:
+      await self.handleRequest(request, handler: self.subtypes)
+    case let request as Request<CompletionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
+    case let request as Request<HoverRequest>:
+      await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
+    case let request as Request<OpenInterfaceRequest>:
+      await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
+    case let request as Request<DeclarationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
+    case let request as Request<DefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
+    case let request as Request<ReferencesRequest>:
+      await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
+    case let request as Request<ImplementationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
+    case let request as Request<CallHierarchyPrepareRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+    case let request as Request<TypeHierarchyPrepareRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+    case let request as Request<SymbolInfoRequest>:
+      await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
+    case let request as Request<DocumentHighlightRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+    case let request as Request<FoldingRangeRequest>:
+      await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
+    case let request as Request<DocumentSymbolRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
+    case let request as Request<DocumentColorRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
+    case let request as Request<DocumentSemanticTokensRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+    case let request as Request<DocumentSemanticTokensDeltaRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+    case let request as Request<DocumentSemanticTokensRangeRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+    case let request as Request<ColorPresentationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
+    case let request as Request<CodeActionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
+    case let request as Request<InlayHintRequest>:
+      await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
+    case let request as Request<DocumentDiagnosticsRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
+    default:
+      reply(.failure(ResponseError.methodNotFound(R.method)))
+    }
+    self.cancellationMessageHandlingQueue.async {
+      // We have handled the request and can't cancel it anymore.
+      // Stop keeping track of it to free the memory.
+      await self.setInProgressRequest(for: id, task: nil)
     }
   }
 
