@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
+import Foundation
+
 /// A request object, wrapping the parameters of a `RequestType` and tracking its state.
 public final class Request<R: RequestType> {
 
@@ -69,23 +72,46 @@ public final class Notification<N: NotificationType> {
   }
 }
 
-extension Request: CustomStringConvertible {
-  public var description: String {
-    return """
-    Request<\(R.method)>(
-      id: \(id),
-      params: \(params)
-    )
-    """
+fileprivate extension Encodable {
+  var prettyPrintJSON: String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting.insert(.prettyPrinted)
+    guard let data = try? encoder.encode(self) else {
+      return "\(self)"
+    }
+    guard let string = String(data: data, encoding: .utf8) else {
+      return "\(self)"
+    }
+    // Don't escape '/'. Most JSON readers don't need it escaped and it makes
+    // paths a lot easier to read and copy-paste.
+    return string.replacingOccurrences(of: "\\/", with: "/")
   }
 }
 
-extension Notification: CustomStringConvertible {
+extension Request: CustomStringConvertible, LogPrintable {
   public var description: String {
     return """
-    Notification<\(N.method)>(
-      params: \(params)
-    )
+    \(R.method)
+    \(params.prettyPrintJSON)
     """
+  }
+
+  public var redactedDescription: String {
+    // FIXME: (logging) Log the non-critical parts of the request
+    return "Request<\(R.method)>"
+  }
+}
+
+extension Notification: CustomStringConvertible, LogPrintable {
+  public var description: String {
+    return """
+    \(N.method)
+    \(params.prettyPrintJSON)
+    """
+  }
+
+  public var redactedDescription: String {
+    // FIXME: (logging) Log the non-critical parts of the notification
+    return "Notification<\(N.method)>"
   }
 }

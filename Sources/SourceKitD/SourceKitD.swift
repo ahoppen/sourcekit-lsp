@@ -16,6 +16,7 @@ import SKSupport
 import LSPLogging
 import Dispatch
 import Foundation
+import os
 
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
@@ -86,28 +87,37 @@ extension SourceKitD {
 
     let handleWrapper = ThreadSafeBox<sourcekitd_request_handle_t?>(initialValue: nil as sourcekitd_request_handle_t?)
 
+    let signposter = OSSignposter(logger: logger)
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("sourcekitd-request", id: signpostID, "Start")
     return try await withTaskCancellationHandler {
       try Task.checkCancellation()
       return try await withCheckedThrowingContinuation { continuation in
         var handle: sourcekitd_request_handle_t?
+        let loggingScope = LoggingScope.scope ?? "default"
         api.send_request(req.dict, &handle) { [weak self] _resp in
-          guard let self = self else { return }
+          withLoggingScope(loggingScope) {
+            guard let self = self else { return }
 
-          let resp = SKDResponse(_resp, sourcekitd: self)
+            let resp = SKDResponse(_resp, sourcekitd: self)
 
-          if Task.isCancelled {
-            continuation.resume(throwing: CancellationError())
-            return
+            if Task.isCancelled {
+              continuation.resume(throwing: CancellationError())
+              signposter.endInterval("sourcekitd-request", state, "Cancelled")
+              return
+            }
+
+            logResponse(resp)
+
+            guard let dict = resp.value else {
+              continuation.resume(throwing: resp.error!)
+              signposter.endInterval("sourcekitd-request", state, "Error")
+              return
+            }
+
+            signposter.endInterval("sourcekitd-request", state, "Done")
+            continuation.resume(returning: dict)
           }
-
-          logResponse(resp)
-
-          guard let dict = resp.value else {
-            continuation.resume(throwing: resp.error!)
-            return
-          }
-
-          continuation.resume(returning: dict)
         }
         handleWrapper.value = handle
       }
@@ -122,17 +132,22 @@ extension SourceKitD {
 private func logRequest(_ request: SKDRequestDictionary) {
   // FIXME: Ideally we could log the request key here at the info level but the dictionary is
   // readonly.
-  logAsync(level: .debug) { _ in request.description }
+  logger.log(
+    """
+    Sending sourcekitd request:
+    \(request.loggable)
+    """
+  )
 }
 
 private func logResponse(_ response: SKDResponse) {
-  if let value = response.value {
-    logAsync(level: .debug) { _ in value.description }
-  } else if case .requestCancelled = response.error! {
-    log(response.description, level: .debug)
-  } else {
-    log(response.description, level: .error)
-  }
+  logger.log(
+    level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
+    """
+    Received sourcekitd response:
+    \(response.loggable)
+    """
+  )
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.

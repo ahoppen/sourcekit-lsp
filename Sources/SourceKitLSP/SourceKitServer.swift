@@ -19,6 +19,7 @@ import LSPLogging
 import SKCore
 import SKSupport
 import SourceKitD
+import os
 
 import PackageLoading
 
@@ -460,6 +461,14 @@ public actor SourceKitServer {
 
 // MARK: - MessageHandler
 
+// FIXME: (async) make this an atomic
+private var notificationID = 0
+
+private func getNextNotificationID() -> Int {
+  notificationID += 1
+  return notificationID
+}
+
 extension SourceKitServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
     if let params = params as? CancelRequestNotification {
@@ -482,31 +491,47 @@ extension SourceKitServer: MessageHandler {
     // instead of a queue per file.
     // Additionally, usually you are editing one file in a source editor, which
     // means that concurrent requests to multiple files tend to be rare.
-    messageHandlingQueue.async(barrier: true) {
-      await self._logNotification(Notification(params))
+    let notificationID = getNextNotificationID()
+    let signposter = OSSignposter(subsystem: subsystem, category: "notification-\(notificationID)")
 
-      switch params {
-      case let notification as InitializedNotification:
-        await self.clientInitialized(notification)
-      case let notification as ExitNotification:
-        await self.exit(notification)
-      case let notification as DidOpenTextDocumentNotification:
-        await self.openDocument(notification)
-      case let notification as DidCloseTextDocumentNotification:
-        await self.closeDocument(notification)
-      case let notification as DidChangeTextDocumentNotification:
-        await self.changeDocument(notification)
-      case let notification as DidChangeWorkspaceFoldersNotification:
-        await self.didChangeWorkspaceFolders(notification)
-      case let notification as DidChangeWatchedFilesNotification:
-        await self.didChangeWatchedFiles(notification)
-      case let notification as WillSaveTextDocumentNotification:
-        await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
-      case let notification as DidSaveTextDocumentNotification:
-        await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
-      default:
-        break
+    
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
+
+    messageHandlingQueue.async(barrier: true) {
+      signposter.emitEvent("Start handling", id: signpostID)
+
+      await withLoggingScope("notification-\(notificationID)") {
+        await self.handleImpl(params)
+        signposter.endInterval("Notification", state, "Done")
       }
+    }
+  }
+
+  private nonisolated func handleImpl(_ params: some NotificationType) async {
+    await self._logNotification(Notification(params))
+
+    switch params {
+    case let notification as InitializedNotification:
+      await self.clientInitialized(notification)
+    case let notification as ExitNotification:
+      await self.exit(notification)
+    case let notification as DidOpenTextDocumentNotification:
+      await self.openDocument(notification)
+    case let notification as DidCloseTextDocumentNotification:
+      await self.closeDocument(notification)
+    case let notification as DidChangeTextDocumentNotification:
+      await self.changeDocument(notification)
+    case let notification as DidChangeWorkspaceFoldersNotification:
+      await self.didChangeWorkspaceFolders(notification)
+    case let notification as DidChangeWatchedFilesNotification:
+      await self.didChangeWatchedFiles(notification)
+    case let notification as WillSaveTextDocumentNotification:
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
+    case let notification as DidSaveTextDocumentNotification:
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
+    default:
+      break
     }
   }
 
@@ -519,19 +544,34 @@ extension SourceKitServer: MessageHandler {
     //    completion session but it only makes sense for the client to request
     //    more results for this completion session after it has received the
     //    initial results.
+    let signposter = OSSignposter(subsystem: subsystem, category: "request-\(id)")
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
     let task = messageHandlingQueue.async(barrier: false) {
-      await self.handleImpl(params, id: id, reply: reply)
+      signposter.emitEvent("Start handling", id: signpostID)
+      await withLoggingScope("request-\(id)") {
+        await self.handleImpl(params, id: id, reply: reply)
+        self.cancellationMessageHandlingQueue.async {
+          // We have handled the request and can't cancel it anymore.
+          // Stop keeping track of it to free the memory.
+          await self.setInProgressRequest(for: id, task: nil)
+        }
+        signposter.endInterval("Request", state, "Done")
+      }
     }
     // Start tracking the request with a high priority to minimize the chance
     // of cancellation
     cancellationMessageHandlingQueue.async {
+      signposter.emitEvent("Cancelled")
       await self.setInProgressRequest(for: id, task: task)
     }
   }
 
   private nonisolated func handleImpl<R: RequestType>(_ params: R, id: RequestID, reply: @escaping (LSPResult<R.Response>) -> Void) async {
+    let startDate = Date()
     let request = Request(params, id: id, reply: { [weak self] result in
       reply(result)
+      logger.log("Replied. Took \(-startDate.timeIntervalSinceNow * 1000)ms")
       if let self {
         self._logResponse(result, id: id, method: R.method)
       }
@@ -602,11 +642,6 @@ extension SourceKitServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
     default:
       reply(.failure(ResponseError.methodNotFound(R.method)))
-    }
-    self.cancellationMessageHandlingQueue.async {
-      // We have handled the request and can't cancel it anymore.
-      // Stop keeping track of it to free the memory.
-      await self.setInProgressRequest(for: id, task: nil)
     }
   }
 

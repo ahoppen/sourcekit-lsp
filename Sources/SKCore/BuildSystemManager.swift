@@ -14,6 +14,7 @@ import LanguageServerProtocol
 import BuildServerProtocol
 import LSPLogging
 import Dispatch
+import os
 
 import struct TSCBasic.AbsolutePath
 
@@ -66,6 +67,18 @@ public actor BuildSystemManager {
   public func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.filesDidChange(events)
   }
+}
+
+private func splitLongMultilineMessage(message: String, maxChunkSize: Int = 800) -> [String] {
+  var chunks: [String] = [""]
+  for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
+    if chunks.last!.utf8.count + line.utf8.count < maxChunkSize {
+      chunks[chunks.count - 1] += "\n" + line
+    } else {
+      chunks.append(String(line))
+    }
+  }
+  return chunks
 }
 
 extension BuildSystemManager {
@@ -132,6 +145,25 @@ extension BuildSystemManager {
       // If the main file isn't the file itself, we need to patch the build settings
       // to reference `document` instead of `mainFile`.
       buildSettings?.buildSettings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
+    }
+    // FIXME: Only log the build settings if they have changed
+    if let buildSettings {
+      let log = """
+      Compiler Arguments:
+      \(buildSettings.buildSettings.compilerArguments.joined(separator: "\n"))
+
+      Working directory:
+      \(buildSettings.buildSettings.workingDirectory ?? "<nil>")
+      """
+
+      let chunks = splitLongMultilineMessage(message: log)
+      for (index, chunk) in chunks.enumerated() {
+        logger.log("""
+        Build settings for \(document.loggable) (\(index + 1)/\(chunks.count))
+        \(chunk)
+        """
+        )
+      }
     }
     return buildSettings
   }
