@@ -94,8 +94,11 @@ public final class CapabilityRegistry {
     guard clientHasDynamicCompletionRegistration else { return }
     if let registration = registration(for: languages, in: completion) {
       if options != registration.completionOptions {
-        log("Unable to register new completion options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.completionOptions)", level: .warning)
+        logger.error("""
+          Unable to register new completion options \(String(reflecting: options), privacy: .public) \
+          for \(languages, privacy: .public) \
+          due to pre-existing options \(String(reflecting: registration.completionOptions), privacy: .public)
+        """)
       }
       return
     }
@@ -118,7 +121,7 @@ public final class CapabilityRegistry {
     guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
     if let registration = didChangeWatchedFiles {
       if watchers != registration.watchers {
-        log("Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)", level: .warning)
+        logger.error("Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)")
       }
       return
     }
@@ -144,8 +147,11 @@ public final class CapabilityRegistry {
     guard clientHasDynamicFoldingRangeRegistration else { return }
     if let registration = registration(for: languages, in: foldingRange) {
       if options != registration.foldingRangeOptions {
-        log("Unable to register new folding range options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.foldingRangeOptions)", level: .warning)
+        logger.error("""
+          Unable to register new folding range options \(String(reflecting: options), privacy: .public) \
+          for "\(languages, privacy: .public) \
+          due to pre-existing options \(String(reflecting: registration.foldingRangeOptions), privacy: .public)
+        """)
       }
       return
     }
@@ -172,8 +178,12 @@ public final class CapabilityRegistry {
     guard clientHasDynamicSemanticTokensRegistration else { return }
     if let registration = registration(for: languages, in: semanticTokens) {
       if options != registration.semanticTokenOptions {
-        log("Unable to register new semantic tokens options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.semanticTokenOptions)", level: .warning)
+        logger.error(
+          """
+          Unable to register new semantic tokens options \(String(reflecting: options), privacy: .public) \
+          for \(languages, privacy: .public) \
+          due to pre-existing options \(String(reflecting: registration.semanticTokenOptions), privacy: .public)
+          """)
       }
       return
     }
@@ -200,8 +210,12 @@ public final class CapabilityRegistry {
     guard clientHasDynamicInlayHintRegistration else { return }
     if let registration = registration(for: languages, in: inlayHint) {
       if options != registration.inlayHintOptions {
-        log("Unable to register new inlay hint options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.inlayHintOptions)", level: .warning)
+        logger.error(
+          """
+          Unable to register new inlay hint options \(String(reflecting: options), privacy: .public) \
+          for \(languages, privacy: .public) \
+          due to pre-existing options \(String(reflecting: registration.inlayHintOptions), privacy: .public)
+          """)
       }
       return
     }
@@ -227,8 +241,13 @@ public final class CapabilityRegistry {
     guard clientHasDynamicDocumentDiagnosticsRegistration else { return }
     if let registration = registration(for: languages, in: pullDiagnostics) {
       if options != registration.diagnosticOptions {
-        log("Unable to register new pull diagnostics options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.diagnosticOptions)", level: .warning)
+        logger.error(
+          """
+          Unable to register new pull diagnostics options \(String(reflecting: options), privacy: .public) \
+          for \(languages, privacy: .public) \
+          due to pre-existing options \(String(reflecting: registration.diagnosticOptions), privacy: .public)
+          """
+        )
       }
       return
     }

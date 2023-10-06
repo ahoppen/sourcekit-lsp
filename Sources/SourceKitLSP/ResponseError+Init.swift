@@ -12,6 +12,8 @@
 
 import LanguageServerProtocol
 import SourceKitD
+import LSPLogging
+import Foundation
 
 extension ResponseError {
   public init(_ error: some Error) {

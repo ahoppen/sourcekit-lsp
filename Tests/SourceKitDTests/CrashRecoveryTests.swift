@@ -56,11 +56,9 @@ final class CrashRecoveryTests: XCTestCase {
     let documentOpened = self.expectation(description: "documentOpened")
     documentOpened.expectedFulfillmentCount = 2
     ws.sk.handleNextNotification({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       documentOpened.fulfill()
     })
     ws.sk.appendOneShotNotificationHandler({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       documentOpened.fulfill()
     })
     try ws.openDocument(loc.url, language: .swift)
@@ -75,9 +73,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
       """)
     ws.sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2), contentChanges: [addFuncChange]), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-      log("Received diagnostics for text edit - syntactic")
     }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-      log("Received diagnostics for text edit - semantic")
     })
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.

@@ -91,7 +91,7 @@ public final class JSONRPCConnection {
     ioGroup.enter()
     receiveIO = DispatchIO(type: .stream, fileDescriptor: rawInFD, queue: queue) { (error: Int32) in
       if error != 0 {
-        log("IO error \(error)", level: .error)
+        logger.error("IO error \(error)")
       }
       ioGroup.leave()
     }
@@ -105,7 +105,7 @@ public final class JSONRPCConnection {
     ioGroup.enter()
     sendIO = DispatchIO(type: .stream, fileDescriptor: rawOutFD, queue: sendQueue) { (error: Int32) in
       if error != 0 {
-        log("IO error \(error)", level: .error)
+        logger.log("IO error \(error)")
       }
       ioGroup.leave()
     }
@@ -143,7 +143,7 @@ public final class JSONRPCConnection {
       guard errorCode == 0 else {
 #if !os(Windows)
         if errorCode != POSIXError.ECANCELED.rawValue {
-          log("IO error reading \(errorCode)", level: .error)
+          logger.error("IO error reading \(errorCode)")
         }
 #endif
         if done { self._close() }
@@ -184,7 +184,7 @@ public final class JSONRPCConnection {
     precondition(state != .created, "tried to send message before calling start(messageHandler:)")
     let ready = state == .running
     if shouldLog && !ready {
-      log("ignoring message; state = \(state)")
+      logger.error("ignoring message; state = \(String(reflecting: self.state), privacy: .public)")
     }
     return ready
   }
@@ -207,7 +207,7 @@ public final class JSONRPCConnection {
     // Setup callback for response type.
     decoder.userInfo[.responseTypeCallbackKey] = { id in
       guard let outstanding = self.outstandingRequests[id] else {
-        log("Unknown request for \(id)", level: .error)
+        logger.error("Unknown request for \(id, privacy: .public)")
         return nil
       }
       return outstanding.responseType
@@ -240,13 +240,13 @@ public final class JSONRPCConnection {
               if let outstanding = self.outstandingRequests.removeValue(forKey: id) {
                 outstanding.replyHandler(.failure(ResponseError(error)))
               } else {
-                log("error in response to unknown request \(id) \(error)", level: .error)
+                logger.error("error in response to unknown request \(id, privacy: .public) \(error)")
               }
               continue MESSAGE_LOOP
             }
           case .notification:
             if error.code == .methodNotFound {
-              log("ignoring unknown notification \(error)")
+              logger.error("ignoring unknown notification \(error.loggable)")
               continue MESSAGE_LOOP
             }
           case .unknown:
@@ -284,17 +284,17 @@ public final class JSONRPCConnection {
 
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
-        log("Unknown request for \(id)", level: .error)
+        logger.error("Unknown request for \(id, privacy: .public)")
         return
       }
       outstanding.replyHandler(.success(response))
     case .errorResponse(let error, id: let id):
       guard let id = id else {
-        log("Received error response for unknown request: \(error.message)", level: .error)
+        logger.error("Received error response for unknown request: \(error.loggable)")
         return
       }
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
-        log("No outstanding requests for request ID \(id)", level: .error)
+        logger.error("No outstanding requests for request ID \(id, privacy: .public)")
         return
       }
       outstanding.replyHandler(.failure(error))
@@ -308,7 +308,7 @@ public final class JSONRPCConnection {
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
       if errorCode != 0 {
-        log("IO error sending message \(errorCode)", level: .error)
+        logger.error("IO error sending message \(errorCode)")
         if done {
           self?.queue.async {
             self?._close()
@@ -382,7 +382,7 @@ public final class JSONRPCConnection {
       guard state == .running else { return }
       state = .closed
 
-      log("\(JSONRPCConnection.self): closing...")
+      logger.log("\(JSONRPCConnection.self): closing...")
       // Attempt to close the reader immediately; we do not need to accept remaining inputs.
       receiveIO.close(flags: .stop)
       // Close the writer after it finishes outstanding work.

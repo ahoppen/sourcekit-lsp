@@ -162,7 +162,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
     guard let sourceKitServer else {
-      log("Cannot retrieve build settings because SourceKitServer is no longer alive", level: .error)
+      logger.fault("Cannot retrieve build settings because SourceKitServer is no longer alive")
       return nil
     }
     guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
@@ -189,22 +189,20 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     of response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot
   ) -> [SyntaxHighlightingToken]? {
-    logExecutionTime(level: .debug) {
-      guard let skTokens: SKDResponseArray = response[keys.annotations] else {
-        return nil
-      }
-      let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
-      var tokens: [SyntaxHighlightingToken] = []
-      tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
-
-      return tokens
+    guard let skTokens: SKDResponseArray = response[keys.annotations] else {
+      return nil
     }
+    let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
+    var tokens: [SyntaxHighlightingToken] = []
+    tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
+
+    return tokens
   }
 
   /// Inform the client about changes to the syntax highlighting tokens.
   private func requestTokensRefresh() async {
     guard let sourceKitServer else {
-      log("Cannot request a token refresh because SourceKitServer has been destructed", level: .error)
+      logger.fault("Cannot request a token refresh because SourceKitServer has been destructed")
       return
     }
     if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
@@ -215,7 +213,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
         do {
           _ = try await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest())
         } catch {
-          log("refreshing tokens failed: \(error)", level: .warning)
+          logger.error("refreshing tokens failed: \(error.loggable)")
         }
       }
     }
@@ -278,7 +276,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   ) async {
     let documentUri = snapshot.uri
     guard diagnosticsEnabled(for: documentUri) else {
-      log("Ignoring diagnostics for blacklisted file \(documentUri.pseudoPath)", level: .debug)
+      logger.debug("Ignoring diagnostics for blacklisted file \(documentUri.loggable)")
       return
     }
 
@@ -609,9 +607,7 @@ extension SwiftLanguageServer {
 
   public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
     guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
-      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
-      log(msg)
-      throw ResponseError.unknown(msg)
+      throw ResponseError.unknown("failed to find snapshot for url \(req.textDocument.uri)")
     }
 
     let helperDocumentName = "DocumentSymbols:" + snapshot.uri.pseudoPath
@@ -699,7 +695,7 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.textDocument.uri)")
+      logger.error("failed to find snapshot for url \(req.textDocument.uri.loggable)")
       return []
     }
 
@@ -809,12 +805,12 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.textDocument.uri)")
+      logger.error("failed to find snapshot for url \(req.textDocument.uri.loggable)")
       return nil
     }
 
     guard let offset = snapshot.utf8Offset(of: req.position) else {
-      log("invalid position \(req.position)")
+      logger.error("invalid position \(req.position, privacy: .public)")
       return nil
     }
 
@@ -859,7 +855,7 @@ extension SwiftLanguageServer {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
     let uri = req.textDocument.uri
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      log("failed to find snapshot for url \(req.textDocument.uri)")
+      logger.error("failed to find snapshot for url \(req.textDocument.uri.loggable)")
       return nil
     }
 
@@ -1028,7 +1024,7 @@ extension SwiftLanguageServer {
 
         guard let start: Position = snapshot.positionOf(utf8Offset: start),
               let end: Position = snapshot.positionOf(utf8Offset: end) else {
-          log("folding range failed to retrieve position of \(snapshot.uri): \(start)-\(end)", level: .warning)
+          logger.error("folding range failed to retrieve position of \(self.snapshot.uri.loggable): \(start)-\(end)")
           return .visitChildren
         }
         let range: FoldingRange
@@ -1136,7 +1132,7 @@ extension SwiftLanguageServer {
         let lspCommand = try $0.asCommand()
         return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
       } catch {
-        log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
+        logger.log("Failed to convert SwiftCommand to Command type: \(error.loggable)")
         return nil
       }
     }
@@ -1226,9 +1222,7 @@ extension SwiftLanguageServer {
 
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
     guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
-      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
-      log(msg)
-      throw ResponseError.unknown(msg)
+      throw ResponseError.unknown("failed to find snapshot for url \(req.textDocument.uri)")
     }
 
     let keys = self.keys
@@ -1265,9 +1259,7 @@ extension SwiftLanguageServer {
       throw ResponseError.unknown("Connection to the editor closed")
     }
     guard let swiftCommand = req.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      let message = "semantic refactoring: unknown command \(req.command)"
-      log(message, level: .warning)
-      throw ResponseError.unknown(message)
+      throw ResponseError.unknown("semantic refactoring: unknown command \(req.command)")
     }
     let refactor = try await semanticRefactoring(swiftCommand)
     let edit = refactor.edit
@@ -1280,7 +1272,7 @@ extension SwiftLanguageServer {
       } else {
         reason = ""
       }
-      log("client refused to apply edit for \(refactor.title)!\(reason)", level: .warning)
+      logger.error("client refused to apply edit for \(refactor.title, privacy: .public)!\(reason)")
     }
     return edit.encodeToLSPAny()
   }
@@ -1308,7 +1300,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       if let sourceKitServer {
         await sourceKitServer.reopenDocuments(for: self)
       } else {
-        log("Cannot reopen documents because SourceKitServer is no longer alive", level: .error)
+        logger.fault("Cannot reopen documents because SourceKitServer is no longer alive")
       }
     }
 
@@ -1321,11 +1313,20 @@ extension SwiftLanguageServer: SKDNotificationHandler {
     }
     
     guard let dict = notification.value else {
-      log(notification.description, level: .error)
+      logger.fault("""
+        Could not decode sourcekitd notification
+        \(notification.loggable)
+        """
+      )
       return
     }
 
-    logAsync(level: .debug) { _ in notification.description }
+    logger.debug(
+      """
+      Received notification from sourcekitd
+      \(notification.loggable)
+      """
+    )
 
     if let kind: sourcekitd_uid_t = dict[self.keys.notification],
        kind == self.values.notification_documentupdate,

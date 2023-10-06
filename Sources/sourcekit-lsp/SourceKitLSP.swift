@@ -172,11 +172,7 @@ struct SourceKitLSP: ParsableCommand {
   }
 
   func run() throws {
-    if let logLevel = logLevel {
-      Logger.shared.currentLevel = logLevel
-    } else {
-      Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
-    }
+    // FIXME: (logging) set log level based on the `logLevel` variable or the `SOURCEKIT_LOGGING` environment variable
 
     // Dup stdout and redirect the fd to stderr so that a careless print()
     // will not break our connection stream.

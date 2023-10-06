@@ -71,12 +71,10 @@ final class LocalSwiftTests: XCTestCase {
       func
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -87,14 +85,12 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
     ]), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 1 - syntactic")
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertEqual(note.params.version, 13)
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
@@ -102,7 +98,6 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "bar()")
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 2 - syntactic")
         XCTAssertEqual(note.params.version, 14)
         // 1 = semantic update finished already
         // 0 = only syntactic
@@ -112,7 +107,6 @@ final class LocalSwiftTests: XCTestCase {
         bar()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -123,7 +117,6 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 3 - syntactic")
         // 1 = remaining semantic error
         // 0 = semantic update finished already
         XCTAssertEqual(note.params.version, 14)
@@ -133,7 +126,6 @@ final class LocalSwiftTests: XCTestCase {
         foo()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
@@ -141,7 +133,6 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
       .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 4 - syntactic")
         XCTAssertEqual(note.params.version, 15)
         // 1 = semantic update finished already
         // 0 = only syntactic
@@ -151,7 +142,6 @@ final class LocalSwiftTests: XCTestCase {
         fooTypo()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -165,7 +155,6 @@ final class LocalSwiftTests: XCTestCase {
       foo()
       """)
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 5 - syntactic")
         XCTAssertEqual(note.params.version, 16)
         // Could be remaining semantic error or new one.
         XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -174,7 +163,6 @@ final class LocalSwiftTests: XCTestCase {
         foo()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -198,12 +186,10 @@ final class LocalSwiftTests: XCTestCase {
       func
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -214,14 +200,12 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
     ]), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 1 - syntactic")
       XCTAssertEqual(note.params.version, 13)
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
@@ -229,7 +213,6 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "bar()")
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 2 - syntactic")
         XCTAssertEqual(note.params.version, 14)
         // 1 = semantic update finished already
         // 0 = only syntactic
@@ -239,7 +222,6 @@ final class LocalSwiftTests: XCTestCase {
         bar()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -250,7 +232,6 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 3 - syntactic")
         XCTAssertEqual(note.params.version, 14)
         // 1 = remaining semantic error
         // 0 = semantic update finished already
@@ -260,7 +241,6 @@ final class LocalSwiftTests: XCTestCase {
         foo()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
@@ -268,7 +248,6 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
       .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 4 - syntactic")
         XCTAssertEqual(note.params.version, 15)
         // 1 = semantic update finished already
         // 0 = only syntactic
@@ -278,7 +257,6 @@ final class LocalSwiftTests: XCTestCase {
         fooTypo()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -292,7 +270,6 @@ final class LocalSwiftTests: XCTestCase {
       foo()
       """)
       ]), { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 5 - syntactic")
         XCTAssertEqual(note.params.version, 16)
          // Could be remaining semantic error or new one.
         XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -301,7 +278,6 @@ final class LocalSwiftTests: XCTestCase {
         foo()
         """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -337,10 +313,8 @@ final class LocalSwiftTests: XCTestCase {
       version: 1,
       text: text
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.uri, includedURI)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.uri, includedURI)
     })
   }
@@ -359,13 +333,11 @@ final class LocalSwiftTests: XCTestCase {
       foo()
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       // 1 = semantic update finished already
       // 0 = only syntactic
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -379,13 +351,11 @@ final class LocalSwiftTests: XCTestCase {
       bar()
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       // 1 = semantic update finished already
       // 0 = only syntactic
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -396,11 +366,9 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uriA, version: 13), contentChanges: [
       .init(range: nil, text: "foo()\n")
     ]), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 1 - syntactic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 1)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 1)
     })
@@ -417,13 +385,11 @@ final class LocalSwiftTests: XCTestCase {
       foo()
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       // 1 = semantic update finished already
       // 0 = only syntactic
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -439,7 +405,6 @@ final class LocalSwiftTests: XCTestCase {
       var
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 13)
       // 1 = syntactic, no cached semantic diagnostic from previous version
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -447,7 +412,6 @@ final class LocalSwiftTests: XCTestCase {
         note.params.diagnostics.first?.range.lowerBound,
         Position(line: 0, utf16index: 3))
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
@@ -466,9 +430,7 @@ final class LocalSwiftTests: XCTestCase {
       uri: uri, language: .swift, version: 12,
       text: "@propertyWrapper struct Bar {}"
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       let diag = note.params.diagnostics.first!
       XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
@@ -490,9 +452,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       let diag = note.params.diagnostics.first!
       XCTAssertNotNil(diag.codeActions)
@@ -524,9 +484,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       let diag = note.params.diagnostics.first!
       XCTAssertEqual(diag.relatedInformation?.count, 2)
@@ -577,9 +535,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       let diag = note.params.diagnostics.first!
       XCTAssertNotNil(diag.codeActions)
@@ -616,9 +572,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       diagnostic = note.params.diagnostics.first
     })
@@ -666,9 +620,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       diagnostic = note.params.diagnostics.first
     })
@@ -720,9 +672,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       diagnostic = note.params.diagnostics.first
     })
@@ -766,9 +716,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - syntactic")
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
       diagnostic = note.params.diagnostics.first!
     })
@@ -1499,9 +1447,7 @@ final class LocalSwiftTests: XCTestCase {
       }
       """
     )), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-      log("Received diagnostics for open - syntactic")
     }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-      log("Received diagnostics for open - semantic")
     })
 
     // Send a request that triggers a syntax tree to be built.
@@ -1510,9 +1456,7 @@ final class LocalSwiftTests: XCTestCase {
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 1), contentChanges: [
       .init(range: Range(Position(line: 2, utf16index: 7)), text: "a"),
     ]), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-      log("Received diagnostics for text edit - syntactic")
     }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-      log("Received diagnostics for text edit - semantic")
     })
     
     XCTAssertEqual(reusedNodes.count, 1)

@@ -18,6 +18,7 @@ import Musl
 #elseif canImport(CRT)
 import CRT
 #endif
+import LSPLogging
 
 public final class SKDResponse {
   public let response: sourcekitd_response_t?
@@ -58,5 +59,13 @@ extension SKDResponse: CustomStringConvertible {
     let ptr = sourcekitd.api.response_description_copy(response)!
     defer { free(ptr) }
     return String(cString: ptr)
+  }
+}
+
+extension SKDResponse: LogPrintable {
+  public var redactedDescription: String {
+    // FIXME: (logging) Implement a better redacted log that contains keys,
+    // number of elements in an array but not the data itself.
+    return "<\(description.filter(\.isNewline).count) lines>"
   }
 }
