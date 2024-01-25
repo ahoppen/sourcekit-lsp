@@ -297,6 +297,7 @@ let package = Package(
         .product(name: "SwiftParserDiagnostics", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        .product(name: "SwiftFormat", package: "swift-format"),
       ],
       exclude: ["CMakeLists.txt"]
     ),
@@ -325,6 +326,7 @@ if useLocalDependencies {
     .package(path: "../swift-argument-parser"),
     .package(path: "../swift-syntax"),
     .package(path: "../swift-crypto"),
+    .package(path: "../swift-format"),
   ]
 } else {
   let relatedDependenciesBranch = "main"
@@ -337,5 +339,6 @@ if useLocalDependencies {
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
     .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
     .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+    .package(url: "https://github.com/apple/swift-format.git", branch: "main"),
   ]
 }

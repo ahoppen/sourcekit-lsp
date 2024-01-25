@@ -12,6 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
+import SwiftFormat
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -173,52 +174,34 @@ extension SwiftLanguageServer {
   public func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
-    guard let swiftFormat else {
-      throw ResponseError.unknown(
-        "Formatting not supported because the toolchain is missing the swift-format executable"
-      )
+    var formatConfiguration: Configuration
+    if let fileURL = req.textDocument.uri.fileURL,
+        let configURL = Configuration.url(forConfigurationFileApplyingTo: fileURL),
+        let configuration = try? Configuration(contentsOf: configURL) {
+      formatConfiguration = configuration
+      // If we find a .swift-format file, we ignore the options passed to us by the editor.
+      // Most likely, the editor inferred them from the current document and thus the options
+      // passed by the editor are most likely less correct than those in .swift-format.
+    } else {
+      formatConfiguration = Configuration()
+      formatConfiguration.tabWidth = req.options.tabSize
+      formatConfiguration.indentation = req.options.insertSpaces ? .spaces(req.options.tabSize) : .tabs(1)
     }
 
-    let process = TSCBasic.Process(
-      args: swiftFormat.pathString,
-      "format",
-      "--configuration",
-      try swiftFormatConfiguration(for: req.textDocument.uri, options: req.options)
-    )
-    let writeStream = try process.launch()
-
-    // Send the file to format to swift-format's stdin. That way we don't have to write it to a file.
-    writeStream.send(snapshot.text)
-    try writeStream.close()
-
-    let result = try await process.waitUntilExit()
-    guard result.exitStatus == .terminated(code: 0) else {
-      let swiftFormatErrorMessage: String
-      switch result.stderrOutput {
-      case .success(let stderrBytes):
-        swiftFormatErrorMessage = String(bytes: stderrBytes, encoding: .utf8) ?? "unknown error"
-      case .failure(let error):
-        swiftFormatErrorMessage = String(describing: error)
-      }
-      throw ResponseError.unknown(
-        """
-        Running swift-format failed
-        \(swiftFormatErrorMessage)
-        """
-      )
+    // Unsupported options
+    if req.options.trimTrailingWhitespace == false {
+      throw ResponseError(code: .requestFailed, message: "swift-format does not support keeping trailing whitespace; set format option to trim trailing trivia to run the formatter")
     }
-    let formattedBytes: [UInt8]
-    switch result.output {
-    case .success(let bytes):
-      formattedBytes = bytes
-    case .failure(let error):
-      throw error
+    if req.options.insertFinalNewline == false {
+      throw ResponseError(code: .requestFailed, message: "swift-format always inserts a final newline to the file; set option to insert a final newline to run the formatter")
+    }
+    if req.options.trimFinalNewlines == false {
+      throw ResponseError(code: .requestFailed, message: "swift-format always trims final newlines; set option to trim final newlines to run the formatter")
     }
 
-    guard let formattedString = String(bytes: formattedBytes, encoding: .utf8) else {
-      throw ResponseError.unknown("Failed to decode response from swift-format as UTF-8")
-    }
+    var outputBuffer = ""
+    let formatter = SwiftFormatter(configuration: formatConfiguration)
+    try formatter.format(source: snapshot.text, assumingFileURL: req.textDocument.uri.fileURL, to: &outputBuffer)
 
-    return edits(from: snapshot, to: formattedString)
-  }
-}
+    return edits(from: snapshot, to: outputBuffer)
+  }}
