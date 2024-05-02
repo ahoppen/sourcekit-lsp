@@ -231,6 +231,16 @@ public actor SwiftPMBuildSystem {
 }
 
 extension SwiftPMBuildSystem {
+  public func generateBuildGraph() async throws {
+    let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
+      logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
+    })
+    try self.workspace.resolve(
+      root: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
+      observabilityScope: observabilitySystem.topScope
+    )
+    try await self.reloadPackage()
+  }
 
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
@@ -389,6 +399,72 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     return []
   }
 
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget] {
+    return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
+      let lhsIndex = self.targets.firstIndex(where: { $0.name == lhs.targetID }) ?? self.targets.count
+      let rhsIndex = self.targets.firstIndex(where: { $0.name == rhs.targetID }) ?? self.targets.count
+      return lhsIndex < rhsIndex
+    }
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    // TODO (indexing): Support preparation of multiple targets at once.
+    for target in targets {
+      try await prepare(singleTarget: target)
+    }
+  }
+
+  private func prepare(singleTarget target: ConfiguredTarget) async throws {
+    // TODO (indexing): Add a proper 'prepare' jobs in SwiftPM instead of building the target
+    guard let toolchain = await toolchainRegistry.default else {
+      logger.error("Not preparing because not toolchain exists")
+      return
+    }
+    guard let swift = toolchain.swift else {
+      logger.error(
+        "Not preparing because toolchain at \(toolchain.identifier) does not contain a Swift compiler"
+      )
+      return
+    }
+    let arguments = [
+      swift.pathString, "build",
+      "--scratch-path", self.workspace.location.scratchDirectory.pathString,
+      "--disable-index-store",
+      "--target", target.targetID,
+    ]
+    let process = Process(
+      arguments: arguments,
+      workingDirectory: try TSCBasic.AbsolutePath(validating: workspacePath.pathString)
+    )
+    try process.launch()
+    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    switch result.exitStatus {
+    case .terminated(code: 0):
+      break
+    case .terminated(code: let code):
+      // This most likely happens if there are compilation errors in the source file. This is nothing to worry about.
+      let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<no stderr>"
+      let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
+      logger.debug(
+        """
+        Preparation of targets \(target.targetID) terminated with non-zero exit code \(code)
+        Stderr:
+        \(stderr)
+        Stdout:
+        \(stdout)
+        """
+      )
+    // await BuildSettingsLogger.index.log(settings: buildSettings, for: uri)
+    case .signalled(signal: let signal):
+      if !Task.isCancelled {
+        // The indexing job finished with a signal. Could be because the compiler crashed.
+        // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
+        // interrupted.
+        logger.error("Preparation of targets \(target.targetID) signaled \(signal)")
+      }
+    }
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }
@@ -483,14 +559,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public func sourceFiles() -> [SourceFileInfo] {
     return fileToTarget.compactMap { (path, target) -> SourceFileInfo? in
-      guard target.isPartOfRootPackage else {
-        // Don't consider files from package dependencies as possible test files.
-        return nil
-      }
       // We should only set mayContainTests to `true` for files from test targets
       // (https://github.com/apple/sourcekit-lsp/issues/1174).
       return SourceFileInfo(
         uri: DocumentURI(path.asURL),
+        isPartOfRootProject: target.isPartOfRootPackage,
         mayContainTests: true
       )
     }

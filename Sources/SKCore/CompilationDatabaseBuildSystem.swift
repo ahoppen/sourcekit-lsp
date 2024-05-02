@@ -125,6 +125,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }
@@ -208,7 +212,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       return []
     }
     return compdb.allCommands.map {
-      SourceFileInfo(uri: DocumentURI($0.url), mayContainTests: true)
+      SourceFileInfo(uri: DocumentURI($0.url), isPartOfRootProject: true, mayContainTests: true)
     }
   }
 

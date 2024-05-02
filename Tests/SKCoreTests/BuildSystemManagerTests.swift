@@ -457,6 +457,10 @@ class ManualBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
   }
 

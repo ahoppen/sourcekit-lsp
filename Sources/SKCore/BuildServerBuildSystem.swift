@@ -279,6 +279,10 @@ extension BuildServerBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in

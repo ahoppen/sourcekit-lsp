@@ -55,6 +55,11 @@ final class TestBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    struct PrepareNotSupportedError: Error {}
+    throw PrepareNotSupportedError()
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
     watchedFiles.insert(uri)
   }
