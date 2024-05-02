@@ -670,6 +670,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
+    await workspace.semanticIndexManager?.waitForUpToDateIndex()
     guard let primaryFileLanguageService = workspace.documentService[uri] else {
       return nil
     }
@@ -839,6 +840,11 @@ extension SourceKitLSPServer {
       return nil
     }
     var prepareRenameResult = languageServicePrepareRename.prepareRename
+
+    Task {
+      // Prompt the index to be updated while the user is entering the new name.
+      await workspace.semanticIndexManager?.waitForUpToDateIndex()
+    }
 
     guard
       let index = workspace.index(checkedFor: .deletedFiles),

@@ -2136,10 +2136,12 @@ extension SourceKitLSPServer {
 
   func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
     guard let data = extractCallHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
+      let workspace = await self.workspaceForDocument(uri: data.uri),
+      let index = workspace.index(checkedFor: .deletedFiles)
     else {
       return []
     }
+    await workspace.semanticIndexManager?.waitForUpToDateIndex()
     var callableUsrs = [data.usr]
     // Also show calls to the functions that this method overrides. This includes overridden class methods and
     // satisfied protocol requirements.
@@ -2190,10 +2192,12 @@ extension SourceKitLSPServer {
 
   func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
     guard let data = extractCallHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
+      let workspace = await self.workspaceForDocument(uri: data.uri),
+      let index = workspace.index(checkedFor: .deletedFiles)
     else {
       return []
     }
+    await workspace.semanticIndexManager?.waitForUpToDateIndex()
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
     let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
@@ -2344,10 +2348,12 @@ extension SourceKitLSPServer {
 
   func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
     guard let data = extractTypeHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
+      let workspace = await self.workspaceForDocument(uri: data.uri),
+      let index = workspace.index(checkedFor: .deletedFiles)
     else {
       return []
     }
+    await workspace.semanticIndexManager?.waitForUpToDateIndex()
 
     // Resolve base types
     let baseOccurs = index.occurrences(relatedToUSR: data.usr, roles: .baseOf)
@@ -2390,10 +2396,12 @@ extension SourceKitLSPServer {
 
   func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
     guard let data = extractTypeHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
+      let workspace = await self.workspaceForDocument(uri: data.uri),
+      let index = workspace.index(checkedFor: .deletedFiles)
     else {
       return []
     }
+    await workspace.semanticIndexManager?.waitForUpToDateIndex()
 
     // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
