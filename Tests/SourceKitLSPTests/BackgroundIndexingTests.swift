@@ -105,6 +105,70 @@ final class BackgroundIndexingTests: XCTestCase {
     )
   }
 
+  func testBackgroundIndexingReindexesWhenFileIsModified() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyFile.swift": """
+        func 1️⃣foo() {}
+        """,
+        "MyOtherFile.swift": "",
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.swift")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let callsBeforeEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(callsBeforeEdit, [])
+
+    let otherFileMarkedContents = """
+      func 2️⃣bar() {
+        3️⃣foo()
+      }
+      """
+
+    let otherFileUri = try project.uri(for: "MyOtherFile.swift")
+    let otherFileUrl = try XCTUnwrap(otherFileUri.fileURL)
+    let otherFilePositions = DocumentPositions(markedText: otherFileMarkedContents)
+
+    try extractMarkers(otherFileMarkedContents).textWithoutMarkers.write(
+      to: otherFileUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: otherFileUri, type: .changed)]))
+
+    let callsAfterEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      callsAfterEdit,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: otherFileUri,
+            range: Range(otherFilePositions["2️⃣"]),
+            selectionRange: Range(otherFilePositions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:9MyLibrary3baryyF"),
+              "uri": .string(otherFileUri.stringValue),
+            ])
+          ),
+          fromRanges: [Range(otherFilePositions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
   func testBackgroundIndexingHappensWithLowPriority() async throws {
     var serverOptions = backgroundIndexingOptions
     serverOptions.indexOptions.indexTaskDidFinish = { taskDescription in

@@ -257,6 +257,7 @@ public final class Workspace {
   public func filesDidChange(_ events: [FileEvent]) async {
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
+    await semanticIndexManager?.filesDidChange(events)
   }
 }
 

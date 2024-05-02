@@ -111,6 +111,26 @@ public final actor SemanticIndexManager {
     logger.debug("Done waiting for up-to-date index")
   }
 
+  public func filesDidChange(_ events: [FileEvent]) {
+    // Reset the index status for these files so they get re-indexed by `index(files:priority:)`
+    for event in events {
+      indexStatus[event.uri] = nil
+    }
+
+    // Re-index all files that haven't been deleted.
+    let updatedFiles = events.compactMap { (event) -> DocumentURI? in
+      switch event.type {
+      case .deleted: return nil
+      default: return event.uri
+      }
+    }
+
+    // Only index files that the build system knows about
+    let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
+    let filesToReIndex = Set(updatedFiles).intersection(sourceFiles)
+    await scheduleBackgroundIndex(files: filesToReIndex)
+  }
+
   // MARK: - Helper functions
 
   /// Index the given set of files at the given priority.
