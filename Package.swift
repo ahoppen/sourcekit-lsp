@@ -400,7 +400,7 @@ var dependencies: [Package.Dependency] {
 
     return [
       .package(url: "https://github.com/apple/indexstore-db.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/apple/swift-package-manager.git", branch: relatedDependenciesBranch),
+      .package(name: "swift-package-manager", path: "../swiftpm"),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
       .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
