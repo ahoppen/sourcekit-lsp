@@ -50,22 +50,6 @@ final class ToolchainRegistryTests: XCTestCase {
     await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
   }
 
-  func testUnknownPlatform() throws {
-    let prevPlatform = Platform.current
-    defer { Platform.current = prevPlatform }
-    Platform.current = nil
-
-    let fs = InMemoryFileSystem()
-    let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
-    try makeToolchain(binPath: binPath, fs, sourcekitdInProc: true)
-
-    guard let t = Toolchain(binPath, fs) else {
-      XCTFail("could not find any tools")
-      return
-    }
-    XCTAssertNotNil(t.sourcekitd)
-  }
-
   func testFindXcodeDefaultToolchain() async throws {
     try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()

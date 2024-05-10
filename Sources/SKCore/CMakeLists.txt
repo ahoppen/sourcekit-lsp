@@ -12,6 +12,7 @@ add_library(SKCore STATIC
   FileBuildSettings.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
+  Platform+CurrentConcurrencySafe.swift
   SplitShellCommand.swift
   TaskScheduler.swift
   Toolchain.swift

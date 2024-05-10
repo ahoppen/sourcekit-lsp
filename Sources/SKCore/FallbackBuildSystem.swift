@@ -31,7 +31,7 @@ public final class FallbackBuildSystem {
 
   /// The path to the SDK.
   public lazy var sdkpath: AbsolutePath? = {
-    guard Platform.current == .darwin else { return nil }
+    guard Platform.currentConcurrencySafe == .darwin else { return nil }
     return try? AbsolutePath(
       validating: Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
         .trimmingCharacters(in: .whitespacesAndNewlines)

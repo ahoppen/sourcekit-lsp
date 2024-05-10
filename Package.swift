@@ -1,4 +1,4 @@
-// swift-tools-version:5.8
+// swift-tools-version: 6.0
 
 import Foundation
 import PackageDescription
@@ -46,7 +46,7 @@ let package = Package(
         "LanguageServerProtocol"
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: CAtomics
@@ -105,7 +105,7 @@ let package = Package(
       name: "LanguageServerProtocol",
       dependencies: [],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
@@ -126,7 +126,7 @@ let package = Package(
         "LSPLogging",
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
@@ -146,7 +146,7 @@ let package = Package(
         .product(name: "Crypto", package: "swift-crypto")
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings + [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: lspLoggingSwiftSettings + [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
@@ -179,7 +179,8 @@ let package = Package(
         "SKCore",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SKCore
@@ -200,7 +201,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
@@ -223,7 +224,7 @@ let package = Package(
         "LSPLogging",
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
@@ -248,7 +249,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
@@ -296,7 +297,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(

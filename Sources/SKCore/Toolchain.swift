@@ -14,7 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 
-@preconcurrency import enum PackageLoading.Platform
+import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
@@ -166,7 +166,7 @@ extension Toolchain {
 
       guard fileSystem.isDirectory(binPath) || fileSystem.isDirectory(libPath) else { continue }
 
-      let execExt = Platform.current?.executableExtension ?? ""
+      let execExt = Platform.currentConcurrencySafe?.executableExtension ?? ""
 
       let clangPath = binPath.appending(component: "clang\(execExt)")
       if fileSystem.isExecutableFile(clangPath) {
@@ -199,7 +199,7 @@ extension Toolchain {
 
       // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
       let dylibExt: String
-      if let dynamicLibraryExtension = Platform.current?.dynamicLibraryExtension {
+      if let dynamicLibraryExtension = Platform.currentConcurrencySafe?.dynamicLibraryExtension {
         dylibExt = dynamicLibraryExtension
       } else {
         logger.fault("Could not determine host OS. Falling back to using '.so' as dynamic library extension")
