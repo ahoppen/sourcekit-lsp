@@ -158,7 +158,8 @@ let package = Package(
       dependencies: [
         "LSPLogging",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: LSPTestSupport
@@ -169,7 +170,8 @@ let package = Package(
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKSupport",
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SemanticIndex
@@ -213,7 +215,8 @@ let package = Package(
       dependencies: [
         "SKCore",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SKSupport

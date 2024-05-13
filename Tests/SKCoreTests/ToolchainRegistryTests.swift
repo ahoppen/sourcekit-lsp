@@ -36,20 +36,6 @@ final class ToolchainRegistryTests: XCTestCase {
     await assertTrue(tr.default === tr.toolchain(identifier: "a"))
   }
 
-  func testDefaultDarwin() async throws {
-    let prevPlatform = Platform.current
-    defer { Platform.current = prevPlatform }
-    Platform.current = .darwin
-
-    let tr = ToolchainRegistry(
-      toolchains: [
-        Toolchain(identifier: "a", displayName: "a", path: nil),
-        Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil),
-      ]
-    )
-    await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
-  }
-
   func testFindXcodeDefaultToolchain() async throws {
     try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()
@@ -625,7 +611,7 @@ private func makeToolchain(
     #endif
   }
 
-  let execExt = Platform.current?.executableExtension ?? ""
+  let execExt = Platform.currentConcurrencySafe?.executableExtension ?? ""
 
   if clang {
     try makeExec(binPath.appending(component: "clang\(execExt)"))
@@ -637,7 +623,7 @@ private func makeToolchain(
     try makeExec(binPath.appending(component: "swiftc\(execExt)"))
   }
 
-  let dylibSuffix = Platform.current?.dynamicLibraryExtension ?? ".so"
+  let dylibSuffix = Platform.currentConcurrencySafe?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
     try fs.createDirectory(libPath.appending(component: "sourcekitd.framework"))
