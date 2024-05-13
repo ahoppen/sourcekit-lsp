@@ -316,7 +316,8 @@ let package = Package(
         "SourceKitD",
         "SKCore",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SourceKitLSP

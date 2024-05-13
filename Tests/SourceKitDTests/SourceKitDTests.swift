@@ -32,7 +32,7 @@ final class SourceKitDTests: XCTestCase {
     let keys = sourcekitd.keys
     let path = DocumentURI.for(.swift).pseudoPath
 
-    let isExpectedNotification = { (response: SKDResponse) -> Bool in
+    let isExpectedNotification = { @Sendable (response: SKDResponse) -> Bool in
       if let notification: sourcekitd_api_uid_t = response.value?[keys.notification],
         let name: String = response.value?[keys.name]
       {
@@ -66,7 +66,7 @@ final class SourceKitDTests: XCTestCase {
     await sourcekitd.addNotificationHandler(handler2)
 
     let args = SKDRequestArray(sourcekitd: sourcekitd)
-    if case .darwin? = Platform.current,
+    if case .darwin? = Platform.currentConcurrencySafe,
       let sdkpath = try? await Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
         .trimmingCharacters(in: .whitespacesAndNewlines)
     {
@@ -95,10 +95,10 @@ final class SourceKitDTests: XCTestCase {
   }
 }
 
-private class ClosureNotificationHandler: SKDNotificationHandler {
-  let f: (SKDResponse) -> Void
+private final class ClosureNotificationHandler: SKDNotificationHandler {
+  let f: @Sendable (SKDResponse) -> Void
 
-  init(_ f: @escaping (SKDResponse) -> Void) {
+  init(_ f: @Sendable @escaping (SKDResponse) -> Void) {
     self.f = f
   }
 
