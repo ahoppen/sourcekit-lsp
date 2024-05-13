@@ -240,7 +240,8 @@ let package = Package(
         "LSPTestSupport",
         "SKSupport",
         "SKTestSupport",
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SKSwiftPMWorkspace
@@ -270,7 +271,8 @@ let package = Package(
         "SourceKitLSP",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SKTestSupport
