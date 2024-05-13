@@ -28,6 +28,10 @@ public typealias LogLevel = os.OSLogType
 public typealias Logger = os.Logger
 public typealias Signposter = OSSignposter
 
+extension OSSignposter: @retroactive @unchecked Sendable {}
+extension OSSignpostID: @retroactive @unchecked Sendable {}
+extension OSSignpostIntervalState: @retroactive @unchecked Sendable {}
+
 extension os.Logger {
   public func makeSignposter() -> Signposter {
     return OSSignposter(logger: self)
