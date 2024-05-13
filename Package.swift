@@ -335,7 +335,8 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(
