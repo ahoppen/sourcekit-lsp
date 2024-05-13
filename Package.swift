@@ -291,7 +291,8 @@ let package = Package(
       ],
       resources: [
         .copy("INPUTS")
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: SourceKitD

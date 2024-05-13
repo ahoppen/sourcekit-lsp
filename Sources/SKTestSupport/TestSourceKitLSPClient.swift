@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import CAtomics
 import Foundation
 import LSPTestSupport
 import LanguageServerProtocol
@@ -35,7 +36,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public typealias RequestHandler<Request: RequestType> = (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
-  private var nextRequestID: Int = 0
+  private nonisolated(unsafe) var nextRequestID = AtomicUInt32(initialValue: 0)
 
   /// If the server is not using the global module cache, the path of the local
   /// module cache.
@@ -66,12 +67,13 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// Conceptually, this is an array of `RequestHandler<any RequestType>` but
   /// since we can't express this in the Swift type system, we use `[Any]`.
-  private var requestHandlers: [Any] = []
+  // FIXME: Should not be `nonisolated(unsafe)`
+  private nonisolated(unsafe) var requestHandlers = ThreadSafeBox<[Any]>(initialValue: [])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
   /// This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer needed.
-  private let cleanUp: () -> Void
+  private let cleanUp: @Sendable () -> Void
 
   /// - Parameters:
   ///   - serverOptions: The equivalent of the command line options with which sourcekit-lsp should be started
@@ -94,7 +96,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     capabilities: ClientCapabilities = ClientCapabilities(),
     usePullDiagnostics: Bool = true,
     workspaceFolders: [WorkspaceFolder]? = nil,
-    cleanUp: @escaping () -> Void = {}
+    cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
     if !useGlobalModuleCache {
       moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
@@ -165,8 +167,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     // It's really unfortunate that there are no async deinits. If we had async
     // deinits, we could await the sending of a ShutdownRequest.
     let sema = DispatchSemaphore(value: 0)
-    nextRequestID += 1
-    server.handle(ShutdownRequest(), id: .number(nextRequestID)) { result in
+    server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
       sema.signal()
     }
     sema.wait()
@@ -182,9 +183,8 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// Send the request to `server` and return the request result.
   public func send<R: RequestType>(_ request: R) async throws -> R.Response {
-    nextRequestID += 1
     return try await withCheckedThrowingContinuation { continuation in
-      server.handle(request, id: .number(self.nextRequestID)) { result in
+      server.handle(request, id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
         continuation.resume(with: result)
       }
     }
@@ -269,7 +269,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// If the next request that is sent to the client is of a different kind than
   /// the given handler, `TestSourceKitLSPClient` will emit an `XCTFail`.
   public func handleNextRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
-    requestHandlers.append(requestHandler)
+    requestHandlers.value.append(requestHandler)
   }
 
   // MARK: - Conformance to MessageHandler
@@ -286,18 +286,20 @@ public final class TestSourceKitLSPClient: MessageHandler {
     id: LanguageServerProtocol.RequestID,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
-    guard let requestHandler = requestHandlers.first else {
-      reply(.failure(.methodNotFound(Request.method)))
-      return
+    requestHandlers.withLock { requestHandlers in
+      guard let requestHandler = requestHandlers.first else {
+        reply(.failure(.methodNotFound(Request.method)))
+        return
+      }
+      guard let requestHandler = requestHandler as? RequestHandler<Request> else {
+        print("\(RequestHandler<Request>.self)")
+        XCTFail("Received request of unexpected type \(Request.method)")
+        reply(.failure(.methodNotFound(Request.method)))
+        return
+      }
+      reply(.success(requestHandler(params)))
+      requestHandlers.removeFirst()
     }
-    guard let requestHandler = requestHandler as? RequestHandler<Request> else {
-      print("\(RequestHandler<Request>.self)")
-      XCTFail("Received request of unexpected type \(Request.method)")
-      reply(.failure(.methodNotFound(Request.method)))
-      return
-    }
-    reply(.success(requestHandler(params)))
-    requestHandlers.removeFirst()
   }
 
   // MARK: - Convenience functions
@@ -391,8 +393,10 @@ public struct DocumentPositions {
 ///
 /// This allows us to set the ``TestSourceKitLSPClient`` as the message handler of
 /// `SourceKitLSPServer` without retaining it.
-private class WeakMessageHandler: MessageHandler {
-  private weak var handler: (any MessageHandler)?
+private final class WeakMessageHandler: MessageHandler, Sendable {
+  // `nonisolated(unsafe)` is fine because `handler` is never modified, only if the weak reference is deallocated, which
+  // is atomic.
+  private nonisolated(unsafe) weak var handler: (any MessageHandler)?
 
   init(_ handler: any MessageHandler) {
     self.handler = handler
@@ -405,7 +409,7 @@ private class WeakMessageHandler: MessageHandler {
   func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
-    reply: @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
   ) {
     guard let handler = handler else {
       reply(.failure(.unknown("Handler has been deallocated")))
