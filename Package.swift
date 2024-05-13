@@ -367,7 +367,8 @@ let package = Package(
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
   ]
 )
