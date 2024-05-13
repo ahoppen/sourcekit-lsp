@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 5.10
 
 import Foundation
 import PackageDescription
@@ -45,8 +45,7 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol"
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     // MARK: CAtomics
@@ -83,8 +82,7 @@ let package = Package(
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -97,8 +95,7 @@ let package = Package(
         "SKCore",
         "SKTestSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: LanguageServerProtocol
@@ -106,8 +103,7 @@ let package = Package(
     .target(
       name: "LanguageServerProtocol",
       dependencies: [],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -115,8 +111,7 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol",
         "LSPTestSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: LanguageServerProtocolJSONRPC
@@ -128,8 +123,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -137,8 +131,7 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocolJSONRPC",
         "LSPTestSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: LSPLogging
@@ -150,7 +143,7 @@ let package = Package(
         .product(name: "Crypto", package: "swift-crypto")
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings + [.swiftLanguageVersion(.v6)]
+      swiftSettings: lspLoggingSwiftSettings
     ),
 
     .testTarget(
@@ -158,8 +151,7 @@ let package = Package(
       dependencies: [
         "LSPLogging",
         "SKTestSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: LSPTestSupport
@@ -170,8 +162,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: SemanticIndex
@@ -185,8 +176,7 @@ let package = Package(
         "SKCore",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     // MARK: SKCore
@@ -206,8 +196,7 @@ let package = Package(
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -215,8 +204,7 @@ let package = Package(
       dependencies: [
         "SKCore",
         "SKTestSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: SKSupport
@@ -230,8 +218,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -240,8 +227,7 @@ let package = Package(
         "LSPTestSupport",
         "SKSupport",
         "SKTestSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: SKSwiftPMWorkspace
@@ -256,8 +242,7 @@ let package = Package(
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -271,8 +256,7 @@ let package = Package(
         "SourceKitLSP",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: SKTestSupport
@@ -291,8 +275,7 @@ let package = Package(
       ],
       resources: [
         .copy("INPUTS")
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: SourceKitD
@@ -306,8 +289,7 @@ let package = Package(
         "SKSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"]
     ),
 
     .testTarget(
@@ -316,8 +298,7 @@ let package = Package(
         "SourceKitD",
         "SKCore",
         "SKTestSupport",
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
 
     // MARK: SourceKitLSP
@@ -346,8 +327,7 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
       ],
-      exclude: ["CMakeLists.txt"],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
@@ -367,10 +347,10 @@ let package = Package(
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ],
-      swiftSettings: [.swiftLanguageVersion(.v6)]
+      ]
     ),
-  ]
+  ],
+  swiftLanguageVersions: [.v5, .version("6")]
 )
 
 // MARK: - Parse build arguments
@@ -413,11 +393,11 @@ var dependencies: [Package.Dependency] {
     let relatedDependenciesBranch = "main"
 
     return [
-      .package(url: "https://github.com/apple/indexstore-db.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/apple/swift-package-manager.git", branch: relatedDependenciesBranch),
+      .package(path: "../indexstore-db"),
+      .package(name: "swift-package-manager", path: "../swiftpm"),
       .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
-      .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
+      .package(path: "../swift-syntax"),
       .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
       // Not a build dependency. Used so the "Format Source Code" command plugin can be used to format sourcekit-lsp
       .package(url: "https://github.com/apple/swift-format.git", branch: relatedDependenciesBranch),
