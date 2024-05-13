@@ -115,7 +115,8 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol",
         "LSPTestSupport",
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: LanguageServerProtocolJSONRPC
