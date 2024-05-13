@@ -97,7 +97,8 @@ let package = Package(
         "SKCore",
         "SKTestSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-      ]
+      ],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     // MARK: LanguageServerProtocol
