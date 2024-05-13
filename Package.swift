@@ -83,7 +83,8 @@ let package = Package(
         .product(name: "SwiftParser", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.swiftLanguageVersion(.v6)]
     ),
 
     .testTarget(

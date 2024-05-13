@@ -14,6 +14,7 @@ add_library(Diagnose STATIC
   SourceKitDRequestExecutor.swift
   SourceReducer.swift
   SourcekitdRequestCommand.swift
+  Swift6Compatibility.swift
   SwiftFrontendCrashScraper.swift
   Toolchain+SwiftFrontend.swift)
 
