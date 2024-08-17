@@ -489,7 +489,9 @@ class ManualBuildSystem: BuiltInBuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  package func generateBuildGraph(allowFileSystemWrites: Bool) {}
+  package func generateBuildGraph() {}
+
+  package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil

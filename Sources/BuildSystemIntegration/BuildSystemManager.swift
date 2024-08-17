@@ -337,8 +337,12 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     return settings
   }
 
-  package func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
-    try await self.buildSystem?.underlyingBuildSystem.generateBuildGraph(allowFileSystemWrites: allowFileSystemWrites)
+  package func generateBuildGraph() async throws {
+    try await self.buildSystem?.underlyingBuildSystem.generateBuildGraph()
+  }
+
+  package func waitForUpToDateBuildGraph() async {
+    await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
   }
 
   package func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
