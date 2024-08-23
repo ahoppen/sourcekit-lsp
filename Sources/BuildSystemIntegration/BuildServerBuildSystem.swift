@@ -16,6 +16,7 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKLogging
+import SKOptions
 import SKSupport
 import SwiftExtensions
 import ToolchainRegistry
@@ -262,6 +263,13 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
 }
 
 extension BuildServerBuildSystem: BuiltInBuildSystem {
+  static package func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
+    guard localFileSystem.isFile(workspaceFolder.appending(component: "buildServer.json")) else {
+      return nil
+    }
+    return workspaceFolder
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
   /// The build settings for the given file.
