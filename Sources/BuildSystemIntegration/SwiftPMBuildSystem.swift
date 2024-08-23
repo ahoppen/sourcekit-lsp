@@ -426,7 +426,7 @@ fileprivate struct NonFileURIError: Error, CustomStringConvertible {
   }
 }
 
-extension SwiftPMBuildSystem: BuildSystemIntegration.BuildSystem {
+extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { true }
 
   package var buildPath: TSCAbsolutePath {
