@@ -48,6 +48,12 @@ package actor CompilationDatabaseBuildSystem {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   package let projectRoot: AbsolutePath
 
   let searchPaths: [RelativePath]
@@ -123,8 +129,8 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(identifier: "dummy")]
+  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+    return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
   }
 
   package func prepare(

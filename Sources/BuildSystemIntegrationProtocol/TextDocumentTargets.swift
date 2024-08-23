@@ -15,7 +15,7 @@ import LanguageServerProtocol
 /// Request sent from SourceKit-LSP to the build system to get the targets a source file belongs to. A source file might belong to multiple targets.
 ///
 /// The targets are considered up-to-date and can be cached by SourceKit-LSP until a `DidChangeTargetsNotification` is sent.
-public struct TextDocumentTargetsRequest: RequestType {
+public struct TextDocumentTargetsRequest: RequestType, Hashable {
   public typealias Response = TextDocumentTargetsResponse
 
   public static let method: String = "textDocument/targets"

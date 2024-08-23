@@ -35,6 +35,12 @@ actor TestBuildSystem: BuiltInBuildSystem {
     self.delegate = delegate
   }
 
+  weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
@@ -63,8 +69,8 @@ actor TestBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(identifier: "dummy")]
+  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+    return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
   }
 
   func prepare(

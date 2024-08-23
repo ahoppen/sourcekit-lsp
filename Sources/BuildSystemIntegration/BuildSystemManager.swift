@@ -24,6 +24,40 @@ import struct TSCBasic.AbsolutePath
 import os
 #endif
 
+fileprivate class RequestCache<Request: RequestType & Hashable> {
+  private var storage: [Request: Result<Request.Response, Error>] = [:]
+
+  func get(
+    _ key: Request,
+    isolation: isolated any Actor = #isolation,
+    compute: (Request) async throws(Error) -> Request.Response
+  ) async throws(Error) -> Request.Response {
+    if let cached = storage[key] {
+      return try cached.get()
+    }
+    let computed: Result<Request.Response, Error>
+    do {
+      computed = .success(try await compute(key))
+    } catch {
+      computed = .failure(error)
+    }
+    storage[key] = computed
+    return try computed.get()
+  }
+
+  func clear(where condition: (Request) -> Bool, isolation: isolated any Actor = #isolation) {
+    for key in storage.keys {
+      if condition(key) {
+        storage[key] = nil
+      }
+    }
+  }
+
+  func clearAll(isolation: isolated any Actor = #isolation) {
+    storage.removeAll()
+  }
+}
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -57,12 +91,14 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  var delegate: BuildSystemDelegate?
+  var delegate: BuildSystemManagerDelegate?
 
   /// The list of toolchains that are available.
   ///
   /// Used to determine which toolchain to use for a given document.
   private let toolchainRegistry: ToolchainRegistry
+
+  private var cachedTargetsForDocument = RequestCache<TextDocumentTargetsRequest>()
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -94,7 +130,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
     self.buildSystem =
       if let buildSystem {
-        BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
+        await BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
       } else {
         nil
       }
@@ -109,7 +145,12 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ///
   /// - Important: Do not call directly.
   package func handle(_ notification: some LanguageServerProtocol.NotificationType) {
-    logger.error("Ignoring unknown notification \(type(of: notification).method) from build system")
+    switch notification {
+    case let notification as DidChangeTextDocumentTargetsNotification:
+      self.didChangeTextDocumentTargets(notification: notification)
+    default:
+      logger.error("Ignoring unknown notification \(type(of: notification).method)")
+    }
   }
 
   /// Implementation of `MessageHandler`, handling requests from the build system.
@@ -120,7 +161,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
-  package func setDelegate(_ delegate: BuildSystemDelegate?) {
+  package func setDelegate(_ delegate: BuildSystemManagerDelegate?) {
     self.delegate = delegate
   }
 
@@ -163,7 +204,19 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// Returns all the `ConfiguredTarget`s that the document is part of.
   package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return await buildSystem?.underlyingBuildSystem.configuredTargets(for: document) ?? []
+    guard let buildSystem else {
+      return []
+    }
+
+    let request = TextDocumentTargetsRequest(uri: document)
+    do {
+      let response = try await cachedTargetsForDocument.get(request) { document in
+        return try await buildSystem.send(request)
+      }
+      return response.targets
+    } catch {
+      return []
+    }
   }
 
   /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
@@ -387,15 +440,18 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  package func buildTargetsChanged(_ changes: [BuildTargetEvent]) async {
-    if let delegate = self.delegate {
-      await delegate.buildTargetsChanged(changes)
-    }
-  }
-
   package func fileHandlingCapabilityChanged() async {
     if let delegate = self.delegate {
       await delegate.fileHandlingCapabilityChanged()
+    }
+  }
+
+  private func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) {
+    if let uris = notification.uris {
+      let uris = Set(uris)
+      self.cachedTargetsForDocument.clear(where: { uris.contains($0.uri) })
+    } else {
+      self.cachedTargetsForDocument.clearAll()
     }
   }
 }

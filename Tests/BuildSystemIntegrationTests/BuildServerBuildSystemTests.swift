@@ -12,6 +12,7 @@
 
 import BuildServerProtocol
 import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import Foundation
 import ISDBTestSupport
 import LanguageServerProtocol
@@ -86,34 +87,28 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
-    let targetIdentifier = BuildTargetIdentifier(uri: try DocumentURI(string: "build://target/a"))
     let buildSystemDelegate = TestDelegate(targetExpectations: [
-      BuildTargetEvent(
-        target: targetIdentifier,
-        kind: .created,
-        data: .dictionary(["key": "value"])
-      ): expectation
+      nil: expectation
     ])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
+    await buildSystem.setMessageHandler(buildSystemDelegate)
     await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     try await fulfillmentOfOrThrow([expectation])
   }
 }
 
-final class TestDelegate: BuildSystemDelegate {
-
+final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler {
   let settingsExpectations: [DocumentURI: XCTestExpectation]
-  let targetExpectations: [BuildTargetEvent: XCTestExpectation]
+  let targetExpectations: [[DocumentURI]?: XCTestExpectation]
   let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
   package init(
     settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
-    targetExpectations: [BuildTargetEvent: XCTestExpectation] = [:],
+    targetExpectations: [[DocumentURI]?: XCTestExpectation] = [:],
     dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
   ) {
     self.settingsExpectations = settingsExpectations
@@ -121,10 +116,8 @@ final class TestDelegate: BuildSystemDelegate {
     self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    for event in changes {
-      targetExpectations[event]?.fulfill()
-    }
+  func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) {
+    targetExpectations[notification.uris]?.fulfill()
   }
 
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
@@ -140,4 +133,17 @@ final class TestDelegate: BuildSystemDelegate {
   }
 
   func fileHandlingCapabilityChanged() {}
+
+  func handle<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
+  }
+
+  func handle(_ notification: some NotificationType) async {
+    switch notification {
+    case let notification as DidChangeTextDocumentTargetsNotification:
+      didChangeTextDocumentTargets(notification: notification)
+    default:
+      break
+    }
+  }
 }

@@ -75,6 +75,12 @@ package actor BuildServerBuildSystem: MessageHandler {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
@@ -223,7 +229,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   func handleBuildTargetsChanged(
     _ notification: BuildTargetsChangedNotification
   ) async {
-    await self.delegate?.buildTargetsChanged(notification.changes)
+    await self.messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
   }
 
   func handleFileOptionsChanged(
@@ -278,8 +284,8 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(identifier: "dummy")]
+  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+    return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
   }
 
   package func generateBuildGraph(allowFileSystemWrites: Bool) {}

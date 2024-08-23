@@ -150,6 +150,12 @@ package actor SwiftPMBuildSystem {
     self.delegate = delegate
   }
 
+  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  package func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   /// This callback is informed when `reloadPackage` starts and ends executing.
   private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
@@ -436,6 +442,7 @@ extension SwiftPMBuildSystem {
     if let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(self.watchedFiles)
       await delegate.fileHandlingCapabilityChanged()
+      await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
     }
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
@@ -563,6 +570,10 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
 
     return []
+  }
+
+  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+    return TextDocumentTargetsResponse(targets: configuredTargets(for: request.uri))
   }
 
   package func generateBuildGraph(allowFileSystemWrites: Bool) async throws {

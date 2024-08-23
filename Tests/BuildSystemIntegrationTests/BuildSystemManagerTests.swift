@@ -458,6 +458,12 @@ class ManualBuildSystem: BuiltInBuildSystem {
     self.delegate = delegate
   }
 
+  weak var messageHandler: BuiltInBuildSystemMessageHandler?
+
+  func setMessageHandler(_ messageHandler: any BuiltInBuildSystemMessageHandler) {
+    self.messageHandler = messageHandler
+  }
+
   package nonisolated var supportsPreparation: Bool { false }
 
   func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
@@ -472,8 +478,8 @@ class ManualBuildSystem: BuiltInBuildSystem {
     return nil
   }
 
-  package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(identifier: "dummy")]
+  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+    return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
   }
 
   package func prepare(
@@ -520,7 +526,7 @@ class ManualBuildSystem: BuiltInBuildSystem {
 }
 
 /// A `BuildSystemDelegate` setup for testing.
-private actor BSMDelegate: BuildSystemDelegate {
+private actor BSMDelegate: BuildSystemManagerDelegate {
   fileprivate typealias ExpectedBuildSettingChangedCall = (
     uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,
     file: StaticString, line: UInt
@@ -564,7 +570,6 @@ private actor BSMDelegate: BuildSystemDelegate {
     }
   }
 
-  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {}
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     for uri in changedFiles {
       guard let expected = expectedDependenciesUpdate.first(where: { $0.uri == uri }) else {

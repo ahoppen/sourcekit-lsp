@@ -93,6 +93,11 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
 
+  /// Set the message handler that is used to send messages from the build system to SourceKit-LSP.
+  // FIXME: This should be set in the initializer but can't right now because BuiltInBuildSystemAdapter is not
+  // responsible for creating the build system.
+  func setMessageHandler(_ messageHandler: BuiltInBuildSystemMessageHandler) async
+
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.
   var supportsPreparation: Bool { get }
@@ -108,8 +113,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
     language: Language
   ) async throws -> FileBuildSettings?
 
-  /// Return the list of targets and run destinations that the given document can be built for.
-  func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget]
+  func textDocumentTargets(_ request: TextDocumentTargetsRequest) async -> TextDocumentTargetsResponse
 
   /// Re-generate the build graph.
   ///
@@ -186,31 +190,67 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
 // FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
 // LocalConnection for the communication.
-protocol BuiltInBuildSystemAdapterDelegate {
-  func handle(_ notification: some LanguageServerProtocol.NotificationType) async
+protocol BuiltInBuildSystemAdapterDelegate: Sendable {
+  func handle(_ notification: some NotificationType) async
+  func handle<R: RequestType>(_ request: R) async throws -> R.Response
+}
+
+// FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
+// LocalConnection for the communication.
+package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
+  func handle(_ notification: some NotificationType) async
   func handle<R: RequestType>(_ request: R) async throws -> R.Response
 }
 
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
-actor BuiltInBuildSystemAdapter {
+actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
   /// The underlying build system.
   // FIXME: This should be private, all messages should go through BSIP. Only accessible from the outside for transition
   // purposes.
   package let underlyingBuildSystem: BuiltInBuildSystem
+  private let messageHandler: any BuiltInBuildSystemAdapterDelegate
 
   init(
     buildSystem: BuiltInBuildSystem,
-    messageHandler: some BuiltInBuildSystemAdapterDelegate
-  ) {
+    messageHandler: any BuiltInBuildSystemAdapterDelegate
+  ) async {
     self.underlyingBuildSystem = buildSystem
+    self.messageHandler = messageHandler
+    await buildSystem.setMessageHandler(self)
   }
 
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
-    throw ResponseError.methodNotFound(R.method)
+    logger.info(
+      """
+      Received request to build system
+      \(request.forLogging)
+      """
+    )
+    /// Executes `body` and casts the result type to `R.Response`, statically checking that the return type of `body` is
+    /// the response type of `request`.
+    func handle<HandledRequestType: RequestType>(
+      _ request: HandledRequestType,
+      _ body: (HandledRequestType) async throws -> HandledRequestType.Response
+    ) async throws -> R.Response {
+      return try await body(request) as! R.Response
+    }
+
+    switch request {
+    case let request as TextDocumentTargetsRequest:
+      return try await handle(request, underlyingBuildSystem.textDocumentTargets)
+    default:
+      throw ResponseError.methodNotFound(R.method)
+    }
   }
 
   package func send(_ notification: some NotificationType) async {
+    logger.info(
+      """
+      Sending notification to build system
+      \(notification.forLogging)
+      """
+    )
     // FIXME: These messages should be handled using a LocalConnection, which also gives us logging for the messages
     // sent. We can only do this once all requests to the build system have been migrated and we can implement proper
     // dependency management between the BSIP messages
@@ -222,7 +262,24 @@ actor BuiltInBuildSystemAdapter {
     }
   }
 
-  package func waitForMessagesToBeHandled() async {
-    // await messageHandlingQueue.async {}.valuePropagatingCancellation
+  func handle(_ notification: some LanguageServerProtocol.NotificationType) async {
+    logger.info(
+      """
+      Received notification from build system
+      \(notification.forLogging)
+      """
+    )
+    await messageHandler.handle(notification)
   }
+
+  func handle<R: RequestType>(_ request: R) async throws -> R.Response {
+    logger.info(
+      """
+      Received request from build system
+      \(request.forLogging)
+      """
+    )
+    return try await messageHandler.handle(request)
+  }
+
 }
