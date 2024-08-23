@@ -12,12 +12,15 @@
 
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import SKOptions
 import SKTestSupport
 import TSCBasic
 import ToolchainRegistry
 import XCTest
+
+import struct BuildSystemIntegration.ConfiguredTarget
 
 final class BuildSystemManagerTests: XCTestCase {
 
@@ -501,7 +504,7 @@ class ManualBuildSystem: BuiltInBuildSystem {
   var indexStorePath: AbsolutePath? { nil }
   var indexDatabasePath: AbsolutePath? { nil }
 
-  func filesDidChange(_ events: [FileEvent]) {}
+  func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) {}
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if map[uri] != nil {

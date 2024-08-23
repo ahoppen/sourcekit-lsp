@@ -55,6 +55,7 @@ let package = Package(
       name: "BuildSystemIntegration",
       dependencies: [
         "BuildServerProtocol",
+        "BuildSystemIntegrationProtocol",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKLogging",

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import BuildSystemIntegrationProtocol
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
@@ -324,7 +325,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     }
   }
 
-  package func filesDidChange(_ events: [FileEvent]) {}
+  package func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) {}
 
   package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     guard

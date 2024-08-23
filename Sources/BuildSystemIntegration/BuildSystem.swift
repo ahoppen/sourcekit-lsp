@@ -11,9 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import SKLogging
 import SKSupport
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -196,7 +198,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   func unregisterForChangeNotifications(for: DocumentURI) async
 
   /// Called when files in the project change.
-  func filesDidChange(_ events: [FileEvent]) async
+  func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) async
 
   func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
 
@@ -211,59 +213,45 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
 }
 
+// FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
+// LocalConnection for the communication.
+protocol BuiltInBuildSystemAdapterDelegate {
+  func handle(_ notification: some LanguageServerProtocol.NotificationType) async
+  func handle<R: RequestType>(_ request: R) async throws -> R.Response
+}
+
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
-actor BuiltInBuildSystemAdapter: MessageHandler {
+actor BuiltInBuildSystemAdapter {
   /// The underlying build system.
   // FIXME: This should be private, all messages should go through BSIP. Only accessible from the outside for transition
   // purposes.
   package let underlyingBuildSystem: BuiltInBuildSystem
 
-  private let sourceKitLSPToBuildSystemConnection: LocalConnection
-  private let buildSystemToSourceKitLSPConnection: LocalConnection
-
   init(
     buildSystem: BuiltInBuildSystem,
-    messageHandler: some MessageHandler
+    messageHandler: some BuiltInBuildSystemAdapterDelegate
   ) {
     self.underlyingBuildSystem = buildSystem
-    buildSystemToSourceKitLSPConnection = LocalConnection(name: "build system manager")
-    buildSystemToSourceKitLSPConnection.start(handler: WeakMessageHandler(messageHandler))
-
-    sourceKitLSPToBuildSystemConnection = LocalConnection(name: "build system")
-    sourceKitLSPToBuildSystemConnection.start(handler: WeakMessageHandler(self))
   }
 
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
-    return try await sourceKitLSPToBuildSystemConnection.send(request)
+    throw ResponseError.methodNotFound(R.method)
   }
 
-  package func send(_ notification: some NotificationType) {
-    return sourceKitLSPToBuildSystemConnection.send(notification)
+  package func send(_ notification: some NotificationType) async {
+    // FIXME: These messages should be handled using a LocalConnection, which also gives us logging for the messages
+    // sent. We can only do this once all requests to the build system have been migrated and we can implement proper
+    // dependency management between the BSIP messages
+    switch notification {
+    case let notification as DidChangeWatchedFilesNotification:
+      await self.underlyingBuildSystem.didChangeWatchedFiles(notification: notification)
+    default:
+      logger.error("Ignoring unknown notification \(type(of: notification).method) from SourceKit-LSP")
+    }
   }
 
-  // MARK: Message Handler implementation
-
-  /// Implementation of `MessageHandler`, handling notifications from SourceKit-LSP to the build system.
-  ///
-  /// - Important: Do not call directly. Use `send` instead.
-  nonisolated func handle(_ notification: some LanguageServerProtocol.NotificationType) {
-    logger.error("Ignoring unknown notification \(type(of: notification).method) from SourceKit-LSP")
-  }
-
-  /// Implementation of `MessageHandler`, handling requests from SourceKit-LSP to the build system.
-  ///
-  /// - Important: Do not call directly. Use `send` instead.
-  nonisolated func handle<Request: RequestType>(
-    _ request: Request,
-    id: RequestID,
-    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) {
-    reply(.failure(.methodNotFound(Request.method)))
-  }
-
-  deinit {
-    buildSystemToSourceKitLSPConnection.close()
-    sourceKitLSPToBuildSystemConnection.close()
+  package func waitForMessagesToBeHandled() async {
+    // await messageHandlingQueue.async {}.valuePropagatingCancellation
   }
 }

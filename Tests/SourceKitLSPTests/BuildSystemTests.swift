@@ -12,6 +12,7 @@
 
 import BuildServerProtocol
 @_spi(Testing) import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import SKOptions
 import SKTestSupport
@@ -20,6 +21,8 @@ import SKTestSupport
 import TSCBasic
 import ToolchainRegistry
 import XCTest
+
+import struct BuildSystemIntegration.ConfiguredTarget
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
@@ -91,7 +94,7 @@ actor TestBuildSystem: BuiltInBuildSystem {
     watchedFiles.remove(uri)
   }
 
-  func filesDidChange(_ events: [FileEvent]) {}
+  func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) async {}
 
   func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     if buildSettingsByFile[uri] != nil {

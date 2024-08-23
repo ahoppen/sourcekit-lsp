@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import BuildSystemIntegrationProtocol
 import Dispatch
 import LanguageServerProtocol
 import SKLogging
@@ -34,7 +35,7 @@ import os
 /// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
-package actor BuildSystemManager: MessageHandler {
+package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
@@ -101,29 +102,23 @@ package actor BuildSystemManager: MessageHandler {
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    await self.buildSystem?.underlyingBuildSystem.filesDidChange(events)
+    await self.buildSystem?.send(BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification(changes: events))
   }
 
   /// Implementation of `MessageHandler`, handling notifications from the build system.
   ///
   /// - Important: Do not call directly.
-  package nonisolated func handle(_ notification: some LanguageServerProtocol.NotificationType) {
+  package func handle(_ notification: some LanguageServerProtocol.NotificationType) {
     logger.error("Ignoring unknown notification \(type(of: notification).method) from build system")
   }
 
   /// Implementation of `MessageHandler`, handling requests from the build system.
   ///
   /// - Important: Do not call directly.
-  package nonisolated func handle<Request: RequestType>(
-    _ request: Request,
-    id: RequestID,
-    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) {
-    reply(.failure(.methodNotFound(Request.method)))
+  package nonisolated func handle<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
   }
-}
 
-extension BuildSystemManager {
   /// - Note: Needed so we can set the delegate from a different isolation context.
   package func setDelegate(_ delegate: BuildSystemDelegate?) {
     self.delegate = delegate

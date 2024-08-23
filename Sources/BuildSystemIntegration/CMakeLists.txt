@@ -17,6 +17,7 @@ set_target_properties(BuildSystemIntegration PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(BuildSystemIntegration PUBLIC
   BuildServerProtocol
+  BuildSystemIntegrationProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKLogging
