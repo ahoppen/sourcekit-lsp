@@ -10,11 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct ConfiguredTarget: Codable, Sendable, Hashable {
-  /// An opaque string that represents the target, including the destination that the target should be built for.
-  public var identifier: String
+import BuildSystemIntegrationProtocol
+import SKLogging
 
-  public init(identifier: String) {
-    self.identifier = identifier
+extension ConfiguredTarget: CustomLogStringConvertible {
+  public var description: String {
+    identifier
+  }
+
+  public var redactedDescription: String {
+    identifier.hashForLogging
   }
 }

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import Foundation
 import LanguageServerProtocol
 import SKLogging

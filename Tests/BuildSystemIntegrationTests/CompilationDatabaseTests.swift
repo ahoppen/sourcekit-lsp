@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic
@@ -290,7 +291,7 @@ final class CompilationDatabaseTests: XCTestCase {
     ) { buildSystem in
       let settings = await buildSystem.buildSettings(
         for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")),
-        in: ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy"),
+        in: ConfiguredTarget(identifier: "dummy"),
         language: .swift
       )
       XCTAssertNotNil(settings)

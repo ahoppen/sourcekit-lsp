@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -75,11 +76,9 @@ package struct PreparationTaskDescription: IndexTaskDescription {
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "preparation-\(id % 100)") {
-      let targetsToPrepare = await targetsToPrepare.asyncFilter {
-        await !preparationUpToDateTracker.isUpToDate($0)
-      }.sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      let targetsToPrepare = await targetsToPrepare.asyncFilter { await !preparationUpToDateTracker.isUpToDate($0) }
+        // Sort targets to get deterministic ordering. The actual order does not matter.
+        .sorted { $0.identifier < $1.identifier }
       if targetsToPrepare.isEmpty {
         return
       }
@@ -87,7 +86,7 @@ package struct PreparationTaskDescription: IndexTaskDescription {
 
       let targetsToPrepareDescription =
         targetsToPrepare
-        .map { "\($0.targetID)-\($0.runDestinationID)" }
+        .map { $0.identifier }
         .joined(separator: ", ")
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"

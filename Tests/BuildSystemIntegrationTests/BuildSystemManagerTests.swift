@@ -20,8 +20,6 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-import struct BuildSystemIntegration.ConfiguredTarget
-
 final class BuildSystemManagerTests: XCTestCase {
 
   func testMainFiles() async throws {
@@ -475,7 +473,7 @@ class ManualBuildSystem: BuiltInBuildSystem {
   }
 
   package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+    return [ConfiguredTarget(identifier: "dummy")]
   }
 
   package func prepare(

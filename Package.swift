@@ -75,6 +75,7 @@ let package = Package(
       name: "BuildSystemIntegrationTests",
       dependencies: [
         "BuildSystemIntegration",
+        "BuildSystemIntegrationProtocol",
         "LanguageServerProtocol",
         "SKOptions",
         "SKTestSupport",
@@ -207,6 +208,7 @@ let package = Package(
       name: "SemanticIndex",
       dependencies: [
         "BuildSystemIntegration",
+        "BuildSystemIntegrationProtocol",
         "LanguageServerProtocol",
         "SKLogging",
         "SwiftExtensions",
@@ -263,6 +265,7 @@ let package = Package(
     .target(
       name: "SKSupport",
       dependencies: [
+        "BuildSystemIntegrationProtocol",
         "CAtomics",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
@@ -364,6 +367,7 @@ let package = Package(
       dependencies: [
         "BuildServerProtocol",
         "BuildSystemIntegration",
+        "BuildSystemIntegrationProtocol",
         "LanguageServerProtocol",
         "SemanticIndex",
         "SKLogging",

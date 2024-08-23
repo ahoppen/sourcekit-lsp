@@ -169,10 +169,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
   package func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
     // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
-    // We could allow the user to specify a preference of one target over another. For now this is not necessary because
-    // no build system currently returns multiple targets for a source file.
+    // We could allow the user to specify a preference of one target over another.
     return await configuredTargets(for: document)
-      .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
+      .sorted { $0.identifier < $1.identifier }
       .first
   }
 

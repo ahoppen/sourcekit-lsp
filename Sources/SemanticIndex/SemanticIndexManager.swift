@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import Foundation
 import LanguageServerProtocol
 import SKLogging
@@ -606,22 +607,20 @@ package final actor SemanticIndexManager {
       filesByTarget[target, default: []].append(fileToIndex)
     }
 
+    // The targets sorted in reverse topological order, low-level targets before high-level targets. If topological
+    // sorting fails, sorted in another deterministic way where the actual order doesn't matter.
     var sortedTargets: [ConfiguredTarget] =
       await orLog("Sorting targets") { try await buildSystemManager.topologicalSort(of: Array(filesByTarget.keys)) }
-      ?? Array(filesByTarget.keys).sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      ?? Array(filesByTarget.keys).sorted { $0.identifier < $1.identifier }
 
     if Set(sortedTargets) != Set(filesByTarget.keys) {
       logger.fault(
         """
         Sorting targets topologically changed set of targets:
-        \(sortedTargets.map(\.targetID).joined(separator: ", ")) != \(filesByTarget.keys.map(\.targetID).joined(separator: ", "))
+        \(sortedTargets.map(\.identifier).joined(separator: ", ")) != \(filesByTarget.keys.map(\.identifier).joined(separator: ", "))
         """
       )
-      sortedTargets = Array(filesByTarget.keys).sorted(by: {
-        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
-      })
+      sortedTargets = Array(filesByTarget.keys).sorted { $0.identifier < $1.identifier }
     }
 
     var indexTasks: [Task<Void, Never>] = []

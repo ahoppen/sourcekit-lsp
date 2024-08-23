@@ -124,7 +124,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+    return [ConfiguredTarget(identifier: "dummy")]
   }
 
   package func prepare(

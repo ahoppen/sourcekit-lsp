@@ -78,10 +78,33 @@ fileprivate extension BuildDestination {
 
 fileprivate extension ConfiguredTarget {
   init(_ buildTarget: any SwiftBuildTarget) {
-    self.init(targetID: buildTarget.name, runDestinationID: buildTarget.destination.id)
+    precondition(
+      !buildTarget.destination.id.contains("/"),
+      "Target serialization format fails if destination contains a '/'"
+    )
+    self.init(identifier: "\(buildTarget.name)/\(buildTarget.destination.id)")
   }
 
-  static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
+  static let forPackageManifest = ConfiguredTarget(identifier: "")
+
+  var targetProperties: (target: String, runDestination: String) {
+    get throws {
+      guard let lastSlashIndex = identifier.lastIndex(of: "/") else {
+        struct InvalidTargetIdentifierError: Swift.Error, CustomStringConvertible {
+          var target: ConfiguredTarget
+
+          var description: String {
+            return "Invalid target identifier \(target)"
+          }
+        }
+        throw InvalidTargetIdentifierError(target: self)
+      }
+      let target = identifier[..<lastSlashIndex]
+      let runDestination = identifier[identifier.index(after: lastSlashIndex)...]
+      return (String(target), String(runDestination))
+    }
+  }
+
 }
 
 fileprivate let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
@@ -483,7 +506,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
 
     guard let buildTarget = self.targets[configuredTarget]?.buildTarget else {
-      logger.fault("Did not find target with name \(configuredTarget.targetID)")
+      logger.fault("Did not find target \(configuredTarget.identifier)")
       return nil
     }
 
@@ -527,7 +550,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
 
     let targets = buildTargets(for: uri)
     if !targets.isEmpty {
-      return targets.sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
+      // Sort targets to get deterministic ordering. The actual order does not matter.
+      return targets.sorted { $0.identifier < $1.identifier }
     }
 
     if path.basename == "Package.swift"
@@ -602,13 +626,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       )
       return
     }
-    logger.debug("Preparing '\(target.targetID)' using \(self.toolchain.identifier)")
+    logger.debug("Preparing '\(target.identifier)' using \(self.toolchain.identifier)")
     var arguments = [
       swift.pathString, "build",
       "--package-path", workspacePath.pathString,
       "--scratch-path", self.workspace.location.scratchDirectory.pathString,
       "--disable-index-store",
-      "--target", target.targetID,
+      "--target", try target.targetProperties.target,
     ]
     if options.swiftPM.disableSandbox ?? false {
       arguments += ["--disable-sandbox"]
@@ -634,7 +658,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     logMessageToIndexLog(
       logID,
       """
-      Preparing \(target.targetID) for \(target.runDestinationID)
+      Preparing \(target.identifier)
       \(arguments.joined(separator: " "))
       """
     )
@@ -660,7 +684,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
       logger.debug(
         """
-        Preparation of target \(target.targetID) terminated with non-zero exit code \(code)
+        Preparation of target \(target.identifier) terminated with non-zero exit code \(code)
         Stderr:
         \(stderr)
         Stdout:
@@ -672,11 +696,11 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
-        logger.error("Preparation of target \(target.targetID) signaled \(signal)")
+        logger.error("Preparation of target \(target.identifier) signaled \(signal)")
       }
     case .abnormal(exception: let exception):
       if !Task.isCancelled {
-        logger.error("Preparation of target \(target.targetID) exited abnormally \(exception)")
+        logger.error("Preparation of target \(target.identifier) exited abnormally \(exception)")
       }
     }
   }

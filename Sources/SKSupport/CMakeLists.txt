@@ -2,6 +2,7 @@
 add_library(SKSupport STATIC
   AbsolutePath+Init.swift
   Atomics.swift
+  BuildSystemIntegrationProtocolTarget+Logging.swift
   ByteString.swift
   Connection+Send.swift
   Debouncer.swift
@@ -19,6 +20,8 @@ target_link_libraries(SKSupport PUBLIC
   CAtomics
 )
 target_link_libraries(SKSupport PRIVATE
+  BuildSystemIntegrationProtocol
+  CAtomics
   LanguageServerProtocol
   SKLogging
   SwiftExtensions

@@ -22,8 +22,6 @@ import TSCBasic
 import ToolchainRegistry
 import XCTest
 
-import struct BuildSystemIntegration.ConfiguredTarget
-
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
 actor TestBuildSystem: BuiltInBuildSystem {
@@ -66,7 +64,7 @@ actor TestBuildSystem: BuiltInBuildSystem {
   }
 
   func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+    return [ConfiguredTarget(identifier: "dummy")]
   }
 
   func prepare(

@@ -11,14 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import SKLogging
 import SemanticIndex
 import XCTest
 
 struct ExpectedPreparation {
-  let targetID: String
-  let runDestinationID: String
+  let configuredTarget: ConfiguredTarget
 
   /// A closure that will be executed when a preparation task starts.
   /// This allows the artificial delay of a preparation task to force two preparation task to race.
@@ -34,14 +34,10 @@ struct ExpectedPreparation {
     didStart: (@Sendable () -> Void)? = nil,
     didFinish: (@Sendable () -> Void)? = nil
   ) {
-    self.targetID = targetID
-    self.runDestinationID = runDestinationID
+    // This should match the format in `ConfiguredTarget(_: any SwiftBuildTarget)` inside SwiftPMBuildSystem.
+    self.configuredTarget = ConfiguredTarget(identifier: "\(targetID)/\(runDestinationID)")
     self.didStart = didStart
     self.didFinish = didFinish
-  }
-
-  var configuredTarget: ConfiguredTarget {
-    return ConfiguredTarget(targetID: targetID, runDestinationID: runDestinationID)
   }
 }
 
