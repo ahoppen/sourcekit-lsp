@@ -246,7 +246,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   /// about the changed build settings.
   private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
     buildSettings[document] = settings
-    await self.delegate?.fileBuildSettingsChanged([document])
+    await self.messageHandler?.handle(DidChangeBuildSettingsNotification(uris: [document]))
   }
 }
 
@@ -270,16 +270,14 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package nonisolated var supportsPreparation: Bool { false }
 
-  /// The build settings for the given file.
-  ///
-  /// Returns `nil` if no build settings have been received from the build
-  /// server yet or if no build settings are available for this file.
-  package func buildSettings(
-    for document: DocumentURI,
-    in target: ConfiguredTarget,
-    language: Language
-  ) async -> FileBuildSettings? {
-    return buildSettings[document]
+  package func buildSettings(request: BuildSettingsRequest) -> BuildSettingsResponse? {
+    guard let buildSettings = buildSettings[request.uri] else {
+      return nil
+    }
+    return BuildSettingsResponse(
+      compilerArguments: buildSettings.compilerArguments,
+      workingDirectory: buildSettings.workingDirectory
+    )
   }
 
   package func defaultLanguage(for document: DocumentURI) async -> Language? {

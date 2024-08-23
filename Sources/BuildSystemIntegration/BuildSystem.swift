@@ -106,18 +106,9 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// implemented.
   var supportsPreparation: Bool { get }
 
-  /// Retrieve build settings for the given document with the given source
-  /// language.
-  ///
-  /// Returns `nil` if the build system can't provide build settings for this
-  /// file or if it hasn't computed build settings for the file yet.
-  func buildSettings(
-    for document: DocumentURI,
-    in target: ConfiguredTarget,
-    language: Language
-  ) async throws -> FileBuildSettings?
+  func buildSettings(request: BuildSettingsRequest) async throws -> BuildSettingsResponse?
 
-  func textDocumentTargets(_ request: TextDocumentTargetsRequest) async -> TextDocumentTargetsResponse
+  func textDocumentTargets(_ request: TextDocumentTargetsRequest) async throws -> TextDocumentTargetsResponse
 
   /// Re-generate the build graph.
   func generateBuildGraph() async throws
@@ -205,24 +196,23 @@ package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
 
 /// Create a build system of the given type.
 private func createBuildSystem(
-  ofType buildSystemType: WorkspaceType,
-  projectRoot: AbsolutePath,
+  buildSystemKind: BuildSystemKind,
   options: SourceKitLSPOptions,
   swiftpmTestHooks: SwiftPMTestHooks,
   toolchainRegistry: ToolchainRegistry,
   messageHandler: BuiltInBuildSystemMessageHandler,
   reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
 ) async -> BuiltInBuildSystem? {
-  switch buildSystemType {
-  case .buildServer:
+  switch buildSystemKind {
+  case .buildServer(let projectRoot):
     return await BuildServerBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
-  case .compilationDatabase:
+  case .compilationDatabase(let projectRoot):
     return CompilationDatabaseBuildSystem(
       projectRoot: projectRoot,
       searchPaths: (options.compilationDatabase.searchPaths ?? []).compactMap { try? RelativePath(validating: $0) },
       messageHandler: messageHandler
     )
-  case .swiftPM:
+  case .swiftPM(let projectRoot):
     return await SwiftPMBuildSystem(
       projectRoot: projectRoot,
       toolchainRegistry: toolchainRegistry,
@@ -231,6 +221,24 @@ private func createBuildSystem(
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       testHooks: swiftpmTestHooks
     )
+  case .testBuildSystem(let projectRoot):
+    return TestBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
+  }
+}
+
+package enum BuildSystemKind {
+  case buildServer(projectRoot: AbsolutePath)
+  case compilationDatabase(projectRoot: AbsolutePath)
+  case swiftPM(projectRoot: AbsolutePath)
+  case testBuildSystem(projectRoot: AbsolutePath)
+
+  package var projectRoot: AbsolutePath {
+    switch self {
+    case .buildServer(let projectRoot): return projectRoot
+    case .compilationDatabase(let projectRoot): return projectRoot
+    case .swiftPM(let projectRoot): return projectRoot
+    case .testBuildSystem(let projectRoot): return projectRoot
+    }
   }
 }
 
@@ -244,21 +252,20 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
   private let messageHandler: any BuiltInBuildSystemAdapterDelegate
 
   init?(
-    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     swiftpmTestHooks: SwiftPMTestHooks,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     messageHandler: any BuiltInBuildSystemAdapterDelegate
   ) async {
-    guard let (buildSystemType, projectRoot) = buildSystemKind else {
+    guard let buildSystemKind else {
       return nil
     }
     self.messageHandler = messageHandler
 
     let buildSystem = await createBuildSystem(
-      ofType: buildSystemType,
-      projectRoot: projectRoot,
+      buildSystemKind: buildSystemKind,
       options: options,
       swiftpmTestHooks: swiftpmTestHooks,
       toolchainRegistry: toolchainRegistry,
@@ -270,15 +277,6 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
 
     self.underlyingBuildSystem = buildSystem
-  }
-
-  /// - Important: For testing purposes only
-  init(
-    testBuildSystem: BuiltInBuildSystem,
-    messageHandler: any BuiltInBuildSystemAdapterDelegate
-  ) async {
-    self.underlyingBuildSystem = testBuildSystem
-    self.messageHandler = messageHandler
   }
 
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
@@ -298,6 +296,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
 
     switch request {
+    case let request as BuildSettingsRequest:
+      return try await handle(request, underlyingBuildSystem.buildSettings)
     case let request as TextDocumentTargetsRequest:
       return try await handle(request, underlyingBuildSystem.textDocumentTargets)
     default:

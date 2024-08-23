@@ -14,9 +14,12 @@ import LanguageServerProtocol
 
 /// Request sent from SourceKit-LSP to the build system to get the build settings for a source file.
 ///
-/// The build settings are considered up-to-date and can be cached by SourceKit-LSP until a `DidChangeBuildSettingsNotification` is sent.
-public struct BuildSettingsRequest: RequestType {
-  public typealias Response = BuildSettingsResponse
+/// The build settings are considered up-to-date and can be cached by SourceKit-LSP until a
+/// `DidChangeBuildSettingsNotification` is sent.
+///
+/// The request may return `nil` if it doesn't have any build settings for this file in the given target.
+public struct BuildSettingsRequest: RequestType, Hashable {
+  public typealias Response = BuildSettingsResponse?
 
   public static let method: String = "textDocument/buildSettings"
 

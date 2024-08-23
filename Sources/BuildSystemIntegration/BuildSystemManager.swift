@@ -98,6 +98,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   private var cachedTargetsForDocument = RequestCache<TextDocumentTargetsRequest>()
 
+  private var cachedBuildSettings = RequestCache<BuildSettingsRequest>()
+
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
@@ -114,7 +116,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package init(
-    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     swiftpmTestHooks: SwiftPMTestHooks,
@@ -133,30 +135,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
   }
 
-  /// Create a BuildSystemManager that wraps the given build system.
-  /// The new manager will modify the delegate of the underlying build system.
-  ///
-  /// - Important: For testing purposes only
-  package init(
-    testBuildSystem: BuiltInBuildSystem?,
-    fallbackBuildSystem: FallbackBuildSystem?,
-    mainFilesProvider: MainFilesProvider?,
-    toolchainRegistry: ToolchainRegistry
-  ) async {
-    let buildSystemHasDelegate = await testBuildSystem?.delegate != nil
-    precondition(!buildSystemHasDelegate)
-    self.fallbackBuildSystem = fallbackBuildSystem
-    self.mainFilesProvider = mainFilesProvider
-    self.toolchainRegistry = toolchainRegistry
-    self.buildSystem =
-      if let testBuildSystem {
-        await BuiltInBuildSystemAdapter(testBuildSystem: testBuildSystem, messageHandler: self)
-      } else {
-        nil
-      }
-    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
-  }
-
   package func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.send(BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification(changes: events))
   }
@@ -164,8 +142,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Implementation of `MessageHandler`, handling notifications from the build system.
   ///
   /// - Important: Do not call directly.
-  package func handle(_ notification: some LanguageServerProtocol.NotificationType) {
+  package func handle(_ notification: some LanguageServerProtocol.NotificationType) async {
     switch notification {
+    case let notification as DidChangeBuildSettingsNotification:
+      await self.didChangeBuildSettings(notification: notification)
     case let notification as DidChangeTextDocumentTargetsNotification:
       self.didChangeTextDocumentTargets(notification: notification)
     default:
@@ -290,12 +270,24 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     guard let buildSystem, let target else {
       return nil
     }
+    let request = BuildSettingsRequest(uri: document, target: target, language: language)
+
     // TODO: We should only wait `fallbackSettingsTimeout` for build settings
     // and return fallback afterwards.
     // For now, this should be fine because all build systems return
     // very quickly from `settings(for:language:)`.
     // https://github.com/apple/sourcekit-lsp/issues/1181
-    return try await buildSystem.underlyingBuildSystem.buildSettings(for: document, in: target, language: language)
+    let response = try await cachedBuildSettings.get(request) { request in
+      try await buildSystem.send(request)
+    }
+    guard let response else {
+      return nil
+    }
+    return FileBuildSettings(
+      compilerArguments: response.compilerArguments,
+      workingDirectory: response.workingDirectory,
+      isFallback: false
+    )
   }
 
   /// Returns the build settings for the given file in the given target.
@@ -440,8 +432,16 @@ extension BuildSystemManager: BuildSystemDelegate {
     )
   }
 
-  package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
+  private func didChangeBuildSettings(notification: DidChangeBuildSettingsNotification) async {
+    let changedWatchedFiles: Set<DocumentURI>
+    if let uris = notification.uris {
+      let uris = Set(uris)
+      cachedBuildSettings.clear { uris.contains($0.uri) }
+      changedWatchedFiles = watchedFilesReferencing(mainFiles: Set(uris))
+    } else {
+      cachedBuildSettings.clearAll()
+      changedWatchedFiles = Set(self.watchedFiles.keys)
+    }
 
     if !changedWatchedFiles.isEmpty, let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(changedWatchedFiles)

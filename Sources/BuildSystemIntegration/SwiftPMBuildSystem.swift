@@ -462,9 +462,9 @@ extension SwiftPMBuildSystem {
     }
 
     if let delegate = self.delegate {
-      await delegate.fileBuildSettingsChanged(self.watchedFiles)
-      await delegate.fileHandlingCapabilityChanged()
       await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
+      await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
+      await delegate.fileHandlingCapabilityChanged()
     }
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
@@ -520,26 +520,22 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     }
   }
 
-  package func buildSettings(
-    for uri: DocumentURI,
-    in configuredTarget: ConfiguredTarget,
-    language: Language
-  ) async throws -> FileBuildSettings? {
-    guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
+  package func buildSettings(request: BuildSettingsRequest) async throws -> BuildSettingsResponse? {
+    guard let url = request.uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.
       return nil
     }
 
-    if configuredTarget == .forPackageManifest {
+    if request.target == .forPackageManifest {
       return try settings(forPackageManifest: path)
     }
 
-    guard let buildTarget = self.targets[configuredTarget]?.buildTarget else {
-      logger.fault("Did not find target \(configuredTarget.identifier)")
+    guard let buildTarget = self.targets[request.target]?.buildTarget else {
+      logger.fault("Did not find target \(request.target.identifier)")
       return nil
     }
 
-    if !buildTarget.sources.lazy.map(DocumentURI.init).contains(uri),
+    if !buildTarget.sources.lazy.map(DocumentURI.init).contains(request.uri),
       let substituteFile = buildTarget.sources.sorted(by: { $0.path < $1.path }).first
     {
       logger.info("Getting compiler arguments for \(url) using substitute file \(substituteFile)")
@@ -550,14 +546,18 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       // on the file's location on disk and generate compiler arguments for it by picking a source file in that target,
       // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
       // with the `.cpp` file.
-      return FileBuildSettings(
+      let buildSettings = FileBuildSettings(
         compilerArguments: try await compilerArguments(for: DocumentURI(substituteFile), in: buildTarget),
         workingDirectory: projectRoot.pathString
       ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
+      return BuildSettingsResponse(
+        compilerArguments: buildSettings.compilerArguments,
+        workingDirectory: buildSettings.workingDirectory
+      )
     }
 
-    return FileBuildSettings(
-      compilerArguments: try await compilerArguments(for: uri, in: buildTarget),
+    return BuildSettingsResponse(
+      compilerArguments: try await compilerArguments(for: request.uri, in: buildTarget),
       workingDirectory: projectRoot.pathString
     )
   }
@@ -852,9 +852,9 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   /// Retrieve settings for a package manifest (Package.swift).
-  private func settings(forPackageManifest path: AbsolutePath) throws -> FileBuildSettings? {
+  private func settings(forPackageManifest path: AbsolutePath) throws -> BuildSettingsResponse? {
     let compilerArgs = workspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
-    return FileBuildSettings(compilerArguments: compilerArgs)
+    return BuildSettingsResponse(compilerArguments: compilerArgs)
   }
 }
 

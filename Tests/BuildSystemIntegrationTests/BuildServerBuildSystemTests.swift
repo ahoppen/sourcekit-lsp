@@ -70,7 +70,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
+    let buildSystemDelegate = TestDelegate(settingsExpectations: [[DocumentURI(fileUrl)]: expectation])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
@@ -101,28 +101,18 @@ final class BuildServerBuildSystemTests: XCTestCase {
 }
 
 final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler {
-  let settingsExpectations: [DocumentURI: XCTestExpectation]
+  let settingsExpectations: [[DocumentURI]?: XCTestExpectation]
   let targetExpectations: [[DocumentURI]?: XCTestExpectation]
   let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
   package init(
-    settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
+    settingsExpectations: [[DocumentURI]?: XCTestExpectation] = [:],
     targetExpectations: [[DocumentURI]?: XCTestExpectation] = [:],
     dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
   ) {
     self.settingsExpectations = settingsExpectations
     self.targetExpectations = targetExpectations
     self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
-  }
-
-  func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) {
-    targetExpectations[notification.uris]?.fulfill()
-  }
-
-  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      settingsExpectations[uri]?.fulfill()
-    }
   }
 
   package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
@@ -140,7 +130,9 @@ final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler 
   func handle(_ notification: some NotificationType) async {
     switch notification {
     case let notification as DidChangeTextDocumentTargetsNotification:
-      didChangeTextDocumentTargets(notification: notification)
+      targetExpectations[notification.uris]?.fulfill()
+    case let notification as DidChangeBuildSettingsNotification:
+      settingsExpectations[notification.uris]?.fulfill()
     default:
       break
     }

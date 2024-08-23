@@ -12,6 +12,7 @@
 
 import Build
 @_spi(Testing) import BuildSystemIntegration
+import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import PackageModel
 import SKOptions
@@ -28,11 +29,11 @@ import struct PackageModel.BuildFlags
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
-  func buildSettings(for uri: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+  func buildSettings(for uri: DocumentURI, language: Language) async throws -> BuildSettingsResponse? {
     guard let target = self.configuredTargets(for: uri).only else {
       return nil
     }
-    return try await buildSettings(for: uri, in: target, language: language)
+    return try await buildSettings(request: BuildSettingsRequest(uri: uri, target: target, language: language))
   }
 }
 

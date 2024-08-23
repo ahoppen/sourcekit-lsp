@@ -114,15 +114,11 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  package func buildSettings(
-    for document: DocumentURI,
-    in buildTarget: ConfiguredTarget,
-    language: Language
-  ) async -> FileBuildSettings? {
-    guard let db = database(for: document),
-      let cmd = db[document].first
+  package func buildSettings(request: BuildSettingsRequest) -> BuildSettingsResponse? {
+    guard let db = database(for: request.uri),
+      let cmd = db[request.uri].first
     else { return nil }
-    return FileBuildSettings(
+    return BuildSettingsResponse(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
@@ -212,9 +208,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       self.fileSystem
     )
 
-    if let delegate = self.delegate {
-      await delegate.fileBuildSettingsChanged(self.watchedFiles)
-    }
+    await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
     }
