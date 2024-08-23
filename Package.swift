@@ -82,6 +82,16 @@ let package = Package(
       ]
     ),
 
+    // MARK: BuildSystemIntegrationProtocol
+
+    .target(
+      name: "BuildSystemIntegrationProtocol",
+      dependencies: [
+        "LanguageServerProtocol"
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
     // MARK: CAtomics
 
     .target(

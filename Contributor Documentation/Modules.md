@@ -10,6 +10,10 @@ Swift types to represent the [Build Server Protocol (BSP) specification](https:/
 
 Defines the queries SourceKit-LSP can ask of a build system, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
 
+### BuildSystemIntegrationProtocol
+
+Defines a JSON-RPC protocol with which SourceKit-LSP can query a build system about the project's structure, such as the project's targets, and the build settings of a file.
+
 ### CAtomics
 
 Implementation of atomics for Swift using C. Once we can raise our deployment target to use the `Atomic` type from the Swift standard library, this module should be removed.
