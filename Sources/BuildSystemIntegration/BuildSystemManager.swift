@@ -34,14 +34,16 @@ import os
 /// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
-package actor BuildSystemManager {
+package actor BuildSystemManager: MessageHandler {
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
   var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
-  let buildSystem: BuiltInBuildSystem?
+  ///
+  /// - Important: The only time this should be modified is in the initializer. Afterwards, it must be constant.
+  private(set) var buildSystem: BuiltInBuildSystemAdapter?
 
   /// Timeout before fallback build settings are used.
   let fallbackSettingsTimeout: DispatchTimeInterval
@@ -66,12 +68,12 @@ package actor BuildSystemManager {
   /// was found.
   package var projectRoot: AbsolutePath? {
     get async {
-      return await buildSystem?.projectRoot
+      return await buildSystem?.underlyingBuildSystem.projectRoot
     }
   }
 
   package var supportsPreparation: Bool {
-    return buildSystem?.supportsPreparation ?? false
+    return buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
   }
 
   /// Create a BuildSystemManager that wraps the given build system. The new
@@ -85,16 +87,39 @@ package actor BuildSystemManager {
   ) async {
     let buildSystemHasDelegate = await buildSystem?.delegate != nil
     precondition(!buildSystemHasDelegate)
-    self.buildSystem = buildSystem
     self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
     self.toolchainRegistry = toolchainRegistry
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
-    await self.buildSystem?.setDelegate(self)
+    self.buildSystem =
+      if let buildSystem {
+        BuiltInBuildSystemAdapter(buildSystem: buildSystem, messageHandler: self)
+      } else {
+        nil
+      }
+    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
-    await self.buildSystem?.filesDidChange(events)
+    await self.buildSystem?.underlyingBuildSystem.filesDidChange(events)
+  }
+
+  /// Implementation of `MessageHandler`, handling notifications from the build system.
+  ///
+  /// - Important: Do not call directly.
+  package nonisolated func handle(_ notification: some LanguageServerProtocol.NotificationType) {
+    logger.error("Ignoring unknown notification \(type(of: notification).method) from build system")
+  }
+
+  /// Implementation of `MessageHandler`, handling requests from the build system.
+  ///
+  /// - Important: Do not call directly.
+  package nonisolated func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
   }
 }
 
@@ -106,7 +131,7 @@ extension BuildSystemManager {
 
   /// Returns the toolchain that should be used to process the given document.
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    if let toolchain = await buildSystem?.toolchain(for: uri, language) {
+    if let toolchain = await buildSystem?.underlyingBuildSystem.toolchain(for: uri, language) {
       return toolchain
     }
 
@@ -128,7 +153,7 @@ extension BuildSystemManager {
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
   package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    if let defaultLanguage = await buildSystem?.defaultLanguage(for: document) {
+    if let defaultLanguage = await buildSystem?.underlyingBuildSystem.defaultLanguage(for: document) {
       return defaultLanguage
     }
     switch document.fileURL?.pathExtension {
@@ -143,7 +168,7 @@ extension BuildSystemManager {
 
   /// Returns all the `ConfiguredTarget`s that the document is part of.
   package func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
-    return await buildSystem?.configuredTargets(for: document) ?? []
+    return await buildSystem?.underlyingBuildSystem.configuredTargets(for: document) ?? []
   }
 
   /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
@@ -203,7 +228,7 @@ extension BuildSystemManager {
     // For now, this should be fine because all build systems return
     // very quickly from `settings(for:language:)`.
     // https://github.com/apple/sourcekit-lsp/issues/1181
-    return try await buildSystem.buildSettings(for: document, in: target, language: language)
+    return try await buildSystem.underlyingBuildSystem.buildSettings(for: document, in: target, language: language)
   }
 
   /// Returns the build settings for the given file in the given target.
@@ -266,22 +291,22 @@ extension BuildSystemManager {
   }
 
   package func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
-    try await self.buildSystem?.generateBuildGraph(allowFileSystemWrites: allowFileSystemWrites)
+    try await self.buildSystem?.underlyingBuildSystem.generateBuildGraph(allowFileSystemWrites: allowFileSystemWrites)
   }
 
   package func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
-    return await buildSystem?.topologicalSort(of: targets)
+    return await buildSystem?.underlyingBuildSystem.topologicalSort(of: targets)
   }
 
   package func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
-    return await buildSystem?.targets(dependingOn: targets)
+    return await buildSystem?.underlyingBuildSystem.targets(dependingOn: targets)
   }
 
   package func prepare(
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    try await buildSystem?.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
+    try await buildSystem?.underlyingBuildSystem.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -293,7 +318,7 @@ extension BuildSystemManager {
     // system. That way, iff the main file changes, we will also notify the
     // delegate about build setting changes of all header files that are based
     // on that main file.
-    await buildSystem?.registerForChangeNotifications(for: mainFile)
+    await buildSystem?.underlyingBuildSystem.registerForChangeNotifications(for: mainFile)
   }
 
   package func unregisterForChangeNotifications(for uri: DocumentURI) async {
@@ -306,19 +331,19 @@ extension BuildSystemManager {
     if watchedFilesReferencing(mainFiles: [mainFile]).isEmpty {
       // Nobody is interested in this main file anymore.
       // We are no longer interested in change notifications for it.
-      await self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
+      await self.buildSystem?.underlyingBuildSystem.unregisterForChangeNotifications(for: mainFile)
     }
   }
 
   package func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
     return max(
-      await buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled,
+      await buildSystem?.underlyingBuildSystem.fileHandlingCapability(for: uri) ?? .unhandled,
       fallbackBuildSystem != nil ? .fallback : .unhandled
     )
   }
 
   package func sourceFiles() async -> [SourceFileInfo] {
-    return await buildSystem?.sourceFiles() ?? []
+    return await buildSystem?.underlyingBuildSystem.sourceFiles() ?? []
   }
 
   package func testFiles() async -> [DocumentURI] {

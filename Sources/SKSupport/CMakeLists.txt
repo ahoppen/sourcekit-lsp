@@ -9,6 +9,7 @@ add_library(SKSupport STATIC
   ExperimentalFeatures.swift
   FileSystem.swift
   LineTable.swift
+  LocalConnection.swift
   Process+Run.swift
   SwitchableProcessResultExitStatus.swift
 )

@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import LanguageServerProtocol
 import SKLogging
+import SKSupport
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
@@ -208,4 +209,61 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ///
   /// The callback might also be called without an actual change to `sourceFiles`.
   func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
+}
+
+/// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
+/// a `BuiltInBuildSystem` to satisfy the requests.
+actor BuiltInBuildSystemAdapter: MessageHandler {
+  /// The underlying build system.
+  // FIXME: This should be private, all messages should go through BSIP. Only accessible from the outside for transition
+  // purposes.
+  package let underlyingBuildSystem: BuiltInBuildSystem
+
+  private let sourceKitLSPToBuildSystemConnection: LocalConnection
+  private let buildSystemToSourceKitLSPConnection: LocalConnection
+
+  init(
+    buildSystem: BuiltInBuildSystem,
+    messageHandler: some MessageHandler
+  ) {
+    self.underlyingBuildSystem = buildSystem
+    buildSystemToSourceKitLSPConnection = LocalConnection(name: "build system manager")
+    buildSystemToSourceKitLSPConnection.start(handler: WeakMessageHandler(messageHandler))
+
+    sourceKitLSPToBuildSystemConnection = LocalConnection(name: "build system")
+    sourceKitLSPToBuildSystemConnection.start(handler: WeakMessageHandler(self))
+  }
+
+  package func send<R: RequestType>(_ request: R) async throws -> R.Response {
+    return try await sourceKitLSPToBuildSystemConnection.send(request)
+  }
+
+  package func send(_ notification: some NotificationType) {
+    return sourceKitLSPToBuildSystemConnection.send(notification)
+  }
+
+  // MARK: Message Handler implementation
+
+  /// Implementation of `MessageHandler`, handling notifications from SourceKit-LSP to the build system.
+  ///
+  /// - Important: Do not call directly. Use `send` instead.
+  nonisolated func handle(_ notification: some LanguageServerProtocol.NotificationType) {
+    logger.error("Ignoring unknown notification \(type(of: notification).method) from SourceKit-LSP")
+  }
+
+  /// Implementation of `MessageHandler`, handling requests from SourceKit-LSP to the build system.
+  ///
+  /// - Important: Do not call directly. Use `send` instead.
+  nonisolated func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
+  }
+
+  deinit {
+    buildSystemToSourceKitLSPConnection.close()
+    sourceKitLSPToBuildSystemConnection.close()
+  }
 }
