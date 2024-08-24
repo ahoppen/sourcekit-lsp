@@ -38,7 +38,7 @@ final class BuildSystemManagerTests: XCTestCase {
     )
 
     let bsm = await BuildSystemManager(
-      buildSystem: nil,
+      testBuildSystem: nil,
       fallbackBuildSystem: FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions()),
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -97,7 +97,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -122,7 +122,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -146,7 +146,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let bs = ManualBuildSystem()
     let fallback = FallbackBuildSystem(options: SourceKitLSPOptions.FallbackBuildSystemOptions())
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: fallback,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -177,7 +177,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -219,7 +219,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -259,7 +259,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -315,7 +315,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -358,7 +358,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b], c: [c]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
@@ -402,7 +402,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
-      buildSystem: bs,
+      testBuildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles,
       toolchainRegistry: ToolchainRegistry.forTesting
