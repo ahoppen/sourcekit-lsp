@@ -54,7 +54,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
+    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: nil)
 
     assertEqual(
       await buildSystem.indexDatabasePath,
@@ -67,7 +67,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
@@ -76,6 +75,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
+    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
     await buildSystem.setDelegate(buildSystemDelegate)
     await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
@@ -83,7 +83,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargetsChanged() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
@@ -94,7 +93,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
-    await buildSystem.setMessageHandler(buildSystemDelegate)
+    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
     await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     try await fulfillmentOfOrThrow([expectation])

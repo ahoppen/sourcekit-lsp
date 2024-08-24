@@ -20,6 +20,7 @@ import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 /// Defines how well a `BuildSystem` can handle a file with a given URI.
 package enum FileHandlingCapability: Comparable, Sendable {
@@ -100,11 +101,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// - Note: Needed so we can set the delegate from a different actor isolation
   ///   context.
   func setDelegate(_ delegate: BuildSystemDelegate?) async
-
-  /// Set the message handler that is used to send messages from the build system to SourceKit-LSP.
-  // FIXME: This should be set in the initializer but can't right now because BuiltInBuildSystemAdapter is not
-  // responsible for creating the build system.
-  func setMessageHandler(_ messageHandler: BuiltInBuildSystemMessageHandler) async
 
   /// Whether the build system is capable of preparing a target for indexing, ie. if the `prepare` methods has been
   /// implemented.
@@ -207,22 +203,82 @@ package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
   func handle<R: RequestType>(_ request: R) async throws -> R.Response
 }
 
+/// Create a build system of the given type.
+private func createBuildSystem(
+  ofType buildSystemType: WorkspaceType,
+  projectRoot: AbsolutePath,
+  options: SourceKitLSPOptions,
+  swiftpmTestHooks: SwiftPMTestHooks,
+  toolchainRegistry: ToolchainRegistry,
+  messageHandler: BuiltInBuildSystemMessageHandler,
+  reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+) async -> BuiltInBuildSystem? {
+  switch buildSystemType {
+  case .buildServer:
+    return await BuildServerBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
+  case .compilationDatabase:
+    return CompilationDatabaseBuildSystem(
+      projectRoot: projectRoot,
+      searchPaths: (options.compilationDatabase.searchPaths ?? []).compactMap { try? RelativePath(validating: $0) },
+      messageHandler: messageHandler
+    )
+  case .swiftPM:
+    return await SwiftPMBuildSystem(
+      projectRoot: projectRoot,
+      toolchainRegistry: toolchainRegistry,
+      options: options,
+      messageHandler: messageHandler,
+      reloadPackageStatusCallback: reloadPackageStatusCallback,
+      testHooks: swiftpmTestHooks
+    )
+  }
+}
+
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
 package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
   /// The underlying build system.
   // FIXME: This should be private, all messages should go through BSIP. Only accessible from the outside for transition
   // purposes.
-  package let underlyingBuildSystem: BuiltInBuildSystem
+  private(set) package var underlyingBuildSystem: BuiltInBuildSystem!
   private let messageHandler: any BuiltInBuildSystemAdapterDelegate
 
-  init(
-    buildSystem: BuiltInBuildSystem,
+  init?(
+    buildSystemKind: (WorkspaceType, projectRoot: AbsolutePath)?,
+    toolchainRegistry: ToolchainRegistry,
+    options: SourceKitLSPOptions,
+    swiftpmTestHooks: SwiftPMTestHooks,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     messageHandler: any BuiltInBuildSystemAdapterDelegate
   ) async {
-    self.underlyingBuildSystem = buildSystem
+    guard let (buildSystemType, projectRoot) = buildSystemKind else {
+      return nil
+    }
     self.messageHandler = messageHandler
-    await buildSystem.setMessageHandler(self)
+
+    let buildSystem = await createBuildSystem(
+      ofType: buildSystemType,
+      projectRoot: projectRoot,
+      options: options,
+      swiftpmTestHooks: swiftpmTestHooks,
+      toolchainRegistry: toolchainRegistry,
+      messageHandler: self,
+      reloadPackageStatusCallback: reloadPackageStatusCallback
+    )
+    guard let buildSystem else {
+      return nil
+    }
+
+    self.underlyingBuildSystem = buildSystem
+  }
+
+  /// - Important: For testing purposes only
+  init(
+    testBuildSystem: BuiltInBuildSystem,
+    messageHandler: any BuiltInBuildSystemAdapterDelegate
+  ) async {
+    self.underlyingBuildSystem = testBuildSystem
+    self.messageHandler = messageHandler
   }
 
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
