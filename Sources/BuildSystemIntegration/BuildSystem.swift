@@ -104,13 +104,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// dependencies.
   func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
 
-  /// If the build system has knowledge about the language that this document should be compiled in, return it.
-  ///
-  /// This is used to determine the language in which a source file should be background indexed.
-  ///
-  /// If `nil` is returned, the language based on the file's extension.
-  func defaultLanguage(for document: DocumentURI) async -> Language?
-
   /// The toolchain that should be used to open the given document.
   ///
   /// If `nil` is returned, then the default toolchain for the given language is used.
@@ -122,12 +115,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// Returns the list of source files in the project.
   ///
   /// Header files should not be considered as source files because they cannot be compiled.
-  func sourceFiles() async -> [SourceFileInfo]
-
-  /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.
-  ///
-  /// The callback might also be called without an actual change to `sourceFiles`.
-  func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
+  func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse
 }
 
 // FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
@@ -242,7 +230,14 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       _ request: HandledRequestType,
       _ body: (HandledRequestType) async throws -> HandledRequestType.Response
     ) async throws -> R.Response {
-      return try await body(request) as! R.Response
+      let response = try await body(request) as! R.Response
+      logger.info(
+        """
+        Received response for request to build system
+        \(request.forLogging)
+        """
+      )
+      return response
     }
 
     switch request {
@@ -252,6 +247,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       return try await handle(request, underlyingBuildSystem.textDocumentTargets)
     case let request as PrepareTargetsRequest:
       return try await handle(request, underlyingBuildSystem.prepare)
+    case let request as WorkspaceSourceFilesRequest:
+      return try await handle(request, underlyingBuildSystem.sourceFiles)
     default:
       throw ResponseError.methodNotFound(R.method)
     }

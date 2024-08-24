@@ -13,16 +13,15 @@
 import LanguageServerProtocol
 
 /// Request sent from SourceKit-LSP to list all source files in the project.
-public struct WorkspaceSourceFilesRequest: RequestType {
+public struct WorkspaceSourceFilesRequest: RequestType, Hashable {
   public typealias Response = WorkspaceSourceFilesResponse
 
   public static let method: String = "workspace/sourceFiles"
+
+  public init() {}
 }
 
 public struct SourceFileInfo: Sendable, Codable {
-  /// The URI of the source file.
-  public var uri: DocumentURI
-
   /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
   /// to a dependency of the project.
   public var isPartOfRootProject: Bool?
@@ -37,12 +36,10 @@ public struct SourceFileInfo: Sendable, Codable {
   public var language: Language?
 
   public init(
-    uri: DocumentURI,
     isPartOfRootProject: Bool? = nil,
     mayContainTests: Bool? = nil,
     language: Language? = nil
   ) {
-    self.uri = uri
     self.isPartOfRootProject = isPartOfRootProject
     self.mayContainTests = mayContainTests
     self.language = language
@@ -50,15 +47,17 @@ public struct SourceFileInfo: Sendable, Codable {
 }
 
 public struct WorkspaceSourceFilesResponse: ResponseType {
-  public var sourceFiles: [SourceFileInfo]
+  public var sourceFiles: [DocumentURI: SourceFileInfo]
 
-  public init(sourceFiles: [SourceFileInfo]) {
+  public init(sourceFiles: [DocumentURI: SourceFileInfo]) {
     self.sourceFiles = sourceFiles
   }
 }
 
 /// Request sent from the build system to SourceKit-LSP to indicate that the source files in the project might have
 /// changed.
-public struct DidChangeSourceFilesNotification: NotificationType {
+public struct DidChangeWorkspaceSourceFilesNotification: NotificationType {
   public static let method: String = "workspace/didChangeSourceFiles"
+
+  public init() {}
 }

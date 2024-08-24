@@ -42,9 +42,6 @@ package actor CompilationDatabaseBuildSystem {
   /// Delegate to handle any build system events.
   package weak var delegate: BuildSystemDelegate? = nil
 
-  /// Callbacks that should be called if the list of possible test files has changed.
-  package var testFilesDidChangeCallbacks: [() async -> Void] = []
-
   package func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
@@ -120,10 +117,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
@@ -193,9 +186,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     )
 
     await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
-    for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
-      await testFilesDidChangeCallback()
-    }
+    await messageHandler?.handle(DidChangeWorkspaceSourceFilesNotification())
   }
 
   package func didChangeWatchedFiles(
@@ -206,16 +197,14 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     }
   }
 
-  package func sourceFiles() async -> [SourceFileInfo] {
+  package func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse {
     guard let compdb else {
-      return []
+      return WorkspaceSourceFilesResponse(sourceFiles: [:])
     }
-    return compdb.allCommands.map {
-      SourceFileInfo(uri: $0.uri, isPartOfRootProject: true, mayContainTests: true)
+    var sourceFiles: [DocumentURI: SourceFileInfo] = [:]
+    for command in compdb.allCommands {
+      sourceFiles[command.uri] = SourceFileInfo()
     }
-  }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
-    testFilesDidChangeCallbacks.append(callback)
+    return WorkspaceSourceFilesResponse(sourceFiles: sourceFiles)
   }
 }

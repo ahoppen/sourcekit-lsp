@@ -58,10 +58,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return buildSettingsByFile[request.uri]
   }
 
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
@@ -90,9 +86,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification
   ) async {}
 
-  package func sourceFiles() async -> [SourceFileInfo] {
-    return []
+  package func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse {
+    return WorkspaceSourceFilesResponse(sourceFiles: [:])
   }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }

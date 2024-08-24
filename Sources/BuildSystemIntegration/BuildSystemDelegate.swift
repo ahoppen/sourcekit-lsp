@@ -42,4 +42,7 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   func fileHandlingCapabilityChanged() async
 
   func logMessageToIndexLog(taskID: IndexTaskID, message: String)
+
+  /// Notify the delegate that the list of source files in the build system might have changed.
+  func sourceFilesDidChange() async
 }

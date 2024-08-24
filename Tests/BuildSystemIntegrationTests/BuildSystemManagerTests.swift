@@ -445,4 +445,6 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
   func fileHandlingCapabilityChanged() {}
 
   nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
+
+  func sourceFilesDidChange() async {}
 }

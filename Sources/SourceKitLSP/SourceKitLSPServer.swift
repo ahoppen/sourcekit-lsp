@@ -889,6 +889,13 @@ extension SourceKitLSPServer: BuildSystemManagerDelegate {
     logger.log("Updating URI to workspace because file handling capability of a workspace changed")
     self.scheduleUpdateOfUriToWorkspace()
   }
+
+  package func sourceFilesDidChange() async {
+    for workspace in workspaces {
+      let testFiles = await orLog("Getting test files") { try await workspace.buildSystemManager.testFiles() } ?? []
+      await workspace.syntacticTestIndex.listOfTestFilesDidChange(testFiles)
+    }
+  }
 }
 
 extension SourceKitLSPServer {

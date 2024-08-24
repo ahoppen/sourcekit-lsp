@@ -122,14 +122,9 @@ package final class Workspace: Sendable {
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
-    await buildSystemManager.buildSystem?.underlyingBuildSystem.addSourceFilesDidChangeCallback { [weak self] in
-      guard let self else {
-        return
-      }
-      await self.syntacticTestIndex.listOfTestFilesDidChange(self.buildSystemManager.testFiles())
-    }
     // Trigger an initial population of `syntacticTestIndex`.
-    await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
+    let testFiles = await orLog("Getting test files") { try await self.buildSystemManager.testFiles() } ?? []
+    await syntacticTestIndex.listOfTestFilesDidChange(testFiles)
     if let semanticIndexManager {
       await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
     }

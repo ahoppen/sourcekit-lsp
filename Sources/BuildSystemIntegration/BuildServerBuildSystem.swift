@@ -298,10 +298,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    return nil
-  }
-
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     return nil
   }
@@ -328,15 +324,10 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) {}
 
-  package func sourceFiles() async -> [SourceFileInfo] {
+  package func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
-    return []
-  }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
-    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
-    // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
+    return WorkspaceSourceFilesResponse(sourceFiles: [:])
   }
 }
 

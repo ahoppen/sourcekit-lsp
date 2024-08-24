@@ -96,9 +96,11 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Used to determine which toolchain to use for a given document.
   private let toolchainRegistry: ToolchainRegistry
 
-  private var cachedTargetsForDocument = RequestCache<TextDocumentTargetsRequest>()
+  private let cachedTextDocumentTargets = RequestCache<TextDocumentTargetsRequest>()
 
-  private var cachedBuildSettings = RequestCache<BuildSettingsRequest>()
+  private let cachedBuildSettings = RequestCache<BuildSettingsRequest>()
+
+  private let cachedWorkspaceSourceFiles = RequestCache<WorkspaceSourceFilesRequest>()
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -145,6 +147,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       await self.didChangeBuildSettings(notification: notification)
     case let notification as DidChangeTextDocumentTargetsNotification:
       await self.didChangeTextDocumentTargets(notification: notification)
+    case let notification as DidChangeWorkspaceSourceFilesNotification:
+      await self.didChangeWorkspaceSourceFiles(notification: notification)
     case let notification as BuildSystemIntegrationProtocol.LogMessageNotification:
       await self.logMessage(notification: notification)
     default:
@@ -188,8 +192,10 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
   /// specify the document's language.
   package func defaultLanguage(for document: DocumentURI) async -> Language? {
-    if let defaultLanguage = await buildSystem?.underlyingBuildSystem.defaultLanguage(for: document) {
-      return defaultLanguage
+    if let sourceFiles = await orLog("Getting source files for default language", { try await self.sourceFiles() }),
+      let language = sourceFiles[document]?.language
+    {
+      return language
     }
     switch document.fileURL?.pathExtension {
     case "c": return .c
@@ -209,7 +215,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
     let request = TextDocumentTargetsRequest(uri: document)
     do {
-      let response = try await cachedTargetsForDocument.get(request) { document in
+      let response = try await cachedTextDocumentTargets.get(request) { document in
         return try await buildSystem.send(request)
       }
       return response.targets
@@ -368,6 +374,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
+    guard await self.supportsPreparation else {
+      return
+    }
     _ = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
   }
 
@@ -381,17 +390,22 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     self.watchedFiles[uri] = nil
   }
 
-  package func sourceFiles() async -> [SourceFileInfo] {
-    return await buildSystem?.underlyingBuildSystem.sourceFiles() ?? []
+  package func sourceFiles() async throws -> [DocumentURI: SourceFileInfo] {
+    guard let buildSystem else {
+      return [:]
+    }
+    return try await cachedWorkspaceSourceFiles.get(WorkspaceSourceFilesRequest()) { request in
+      try await buildSystem.send(request)
+    }.sourceFiles
   }
 
-  package func testFiles() async -> [DocumentURI] {
-    return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
+  package func testFiles() async throws -> [DocumentURI] {
+    return try await sourceFiles().compactMap { (uri: DocumentURI, info: SourceFileInfo) -> DocumentURI? in
       guard info.isPartOfRootProject ?? true, info.mayContainTests ?? true else {
         return nil
       }
-      return info.uri
-    }
+      return uri
+    }.sorted(by: { $0.pseudoPath < $1.pseudoPath })
   }
 }
 
@@ -443,11 +457,16 @@ extension BuildSystemManager: BuildSystemDelegate {
   private func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) async {
     if let uris = notification.uris {
       let uris = Set(uris)
-      self.cachedTargetsForDocument.clear(where: { uris.contains($0.uri) })
+      self.cachedTextDocumentTargets.clear(where: { uris.contains($0.uri) })
     } else {
-      self.cachedTargetsForDocument.clearAll()
+      self.cachedTextDocumentTargets.clearAll()
     }
     await delegate?.fileHandlingCapabilityChanged()
+  }
+
+  private func didChangeWorkspaceSourceFiles(notification: DidChangeWorkspaceSourceFilesNotification) async {
+    cachedWorkspaceSourceFiles.clearAll()
+    await self.delegate?.sourceFilesDidChange()
   }
 
   private func logMessage(notification: BuildSystemIntegrationProtocol.LogMessageNotification) async {

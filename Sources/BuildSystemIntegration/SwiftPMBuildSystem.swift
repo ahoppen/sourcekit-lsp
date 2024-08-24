@@ -159,9 +159,6 @@ package actor SwiftPMBuildSystem {
   /// This callback is informed when `reloadPackage` starts and ends executing.
   private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
-  /// Callbacks that should be called if the list of possible test files has changed.
-  private var testFilesDidChangeCallbacks: [() async -> Void] = []
-
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
   /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
@@ -459,9 +456,7 @@ extension SwiftPMBuildSystem {
 
     await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
     await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
-    for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
-      await testFilesDidChangeCallback()
-    }
+    await messageHandler?.handle(DidChangeWorkspaceSourceFilesNotification())
   }
 }
 
@@ -553,11 +548,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       compilerArguments: try await compilerArguments(for: request.uri, in: buildTarget),
       workingDirectory: projectRoot.pathString
     )
-  }
-
-  package func defaultLanguage(for document: DocumentURI) -> Language? {
-    // TODO: Query The SwiftPM build system for the document's language. (https://github.com/swiftlang/sourcekit-lsp/issues/1267)
-    return nil
   }
 
   package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
@@ -818,23 +808,18 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
-  package func sourceFiles() -> [SourceFileInfo] {
+  package func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse {
     var sourceFiles: [DocumentURI: SourceFileInfo] = [:]
     for (buildTarget, depth) in self.targets.values {
       for sourceFile in buildTarget.sources {
         let uri = DocumentURI(sourceFile)
         sourceFiles[uri] = SourceFileInfo(
-          uri: uri,
           isPartOfRootProject: depth == 1 || (sourceFiles[uri]?.isPartOfRootProject ?? false),
           mayContainTests: true
         )
       }
     }
-    return sourceFiles.values.sorted { $0.uri.pseudoPath < $1.uri.pseudoPath }
-  }
-
-  package func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
-    testFilesDidChangeCallbacks.append(callback)
+    return WorkspaceSourceFilesResponse(sourceFiles: sourceFiles)
   }
 
   /// Retrieve settings for a package manifest (Package.swift).
