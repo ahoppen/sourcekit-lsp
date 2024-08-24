@@ -145,6 +145,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       await self.didChangeBuildSettings(notification: notification)
     case let notification as DidChangeTextDocumentTargetsNotification:
       await self.didChangeTextDocumentTargets(notification: notification)
+    case let notification as BuildSystemIntegrationProtocol.LogMessageNotification:
+      await self.logMessage(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
@@ -366,7 +368,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     targets: [ConfiguredTarget],
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
-    try await buildSystem?.underlyingBuildSystem.prepare(targets: targets, logMessageToIndexLog: logMessageToIndexLog)
+    _ = try await buildSystem?.send(PrepareTargetsRequest(targets: targets))
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -446,6 +448,14 @@ extension BuildSystemManager: BuildSystemDelegate {
       self.cachedTargetsForDocument.clearAll()
     }
     await delegate?.fileHandlingCapabilityChanged()
+  }
+
+  private func logMessage(notification: BuildSystemIntegrationProtocol.LogMessageNotification) async {
+    guard let taskID = IndexTaskID(rawValue: notification.task) else {
+      logger.error("Ignoring log message notification with unknown task \(notification.task)")
+      return
+    }
+    delegate?.logMessageToIndexLog(taskID: taskID, message: notification.message)
   }
 }
 

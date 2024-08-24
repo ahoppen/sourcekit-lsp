@@ -40,4 +40,6 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// for some file has changed. The delegate should discard any cached file
   /// handling capability.
   func fileHandlingCapabilityChanged() async
+
+  func logMessageToIndexLog(taskID: IndexTaskID, message: String)
 }

@@ -132,10 +132,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
   }
 
-  package func prepare(
-    targets: [ConfiguredTarget],
-    logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws {
+  package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }
 

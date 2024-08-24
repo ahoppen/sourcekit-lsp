@@ -123,10 +123,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
-  func prepare(
-    targets: [ConfiguredTarget],
-    logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
-  ) async throws
+  func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
 
   /// If the build system has knowledge about the language that this document should be compiled in, return it.
   ///
@@ -274,6 +271,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       return try await handle(request, underlyingBuildSystem.buildSettings)
     case let request as TextDocumentTargetsRequest:
       return try await handle(request, underlyingBuildSystem.textDocumentTargets)
+    case let request as PrepareTargetsRequest:
+      return try await handle(request, underlyingBuildSystem.prepare)
     default:
       throw ResponseError.methodNotFound(R.method)
     }
