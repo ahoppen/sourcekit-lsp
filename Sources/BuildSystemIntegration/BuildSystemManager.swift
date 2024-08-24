@@ -387,7 +387,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   package func testFiles() async -> [DocumentURI] {
     return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
-      guard info.isPartOfRootProject, info.mayContainTests else {
+      guard info.isPartOfRootProject ?? true, info.mayContainTests ?? true else {
         return nil
       }
       return info.uri
