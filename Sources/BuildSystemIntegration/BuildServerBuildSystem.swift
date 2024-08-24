@@ -298,8 +298,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
   }
 
-  package func generateBuildGraph() {}
-
   package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {

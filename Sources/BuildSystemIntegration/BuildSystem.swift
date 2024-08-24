@@ -65,9 +65,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
 
   func textDocumentTargets(_ request: TextDocumentTargetsRequest) async throws -> TextDocumentTargetsResponse
 
-  /// Re-generate the build graph.
-  func generateBuildGraph() async throws
-
   /// Wait until the build graph has been loaded.
   func waitForUpToDateBuildGraph() async
 

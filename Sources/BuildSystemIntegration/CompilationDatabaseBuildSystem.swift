@@ -122,8 +122,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  package func generateBuildGraph() {}
-
   package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {

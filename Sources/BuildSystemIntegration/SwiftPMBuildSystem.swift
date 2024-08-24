@@ -354,6 +354,13 @@ package actor SwiftPMBuildSystem {
         DidUpdateTextDocumentDependenciesNotification(documents: Array(filesWithUpdatedDependencies))
       )
     }
+
+    _ = packageLoadingQueue.asyncThrowing {
+      // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
+      // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
+      // system.
+      try await self.reloadPackageAssumingOnPackageLoadingQueue()
+    }
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -391,14 +398,9 @@ package actor SwiftPMBuildSystem {
 extension SwiftPMBuildSystem {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  package func reloadPackage() async throws {
-    try await packageLoadingQueue.asyncThrowing {
-      try await self.reloadPackageImpl()
-    }.valuePropagatingCancellation
-  }
-
+  ///
   /// - Important: Must only be called on `packageLoadingQueue`.
-  private func reloadPackageImpl() async throws {
+  private func reloadPackageAssumingOnPackageLoadingQueue() async throws {
     await reloadPackageStatusCallback(.start)
     await testHooks.reloadPackageDidStart?()
     defer {
@@ -569,10 +571,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
 
   package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
     return TextDocumentTargetsResponse(targets: configuredTargets(for: request.uri))
-  }
-
-  package func generateBuildGraph() async throws {
-    try await self.reloadPackage()
   }
 
   package func waitForUpToDateBuildGraph() async {
@@ -766,9 +764,11 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   ) async {
     if notification.changes.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
-      await orLog("Reloading package") {
-        try await self.reloadPackage()
-      }
+      await packageLoadingQueue.async {
+        await orLog("Reloading package") {
+          try await self.reloadPackageAssumingOnPackageLoadingQueue()
+        }
+      }.valuePropagatingCancellation
     }
 
     var filesWithUpdatedDependencies: Set<DocumentURI> = []

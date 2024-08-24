@@ -159,15 +159,6 @@ package final class Workspace: Sendable {
     )
     let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem
 
-    Task {
-      await orLog("Initial build graph generation") {
-        // Schedule an initial generation of the build graph. Once the build graph is loaded, the build system will send
-        // call `fileHandlingCapabilityChanged`, which allows us to move documents to a workspace with this build
-        // system.
-        try await buildSystem?.generateBuildGraph()
-      }
-    }
-
     let buildSystemType =
       if let buildSystem {
         String(describing: type(of: buildSystem))

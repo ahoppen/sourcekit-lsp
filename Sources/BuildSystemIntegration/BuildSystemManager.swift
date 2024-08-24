@@ -384,10 +384,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     return settings
   }
 
-  package func generateBuildGraph() async throws {
-    try await self.buildSystem?.underlyingBuildSystem.generateBuildGraph()
-  }
-
   package func waitForUpToDateBuildGraph() async {
     await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
   }

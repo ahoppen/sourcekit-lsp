@@ -52,34 +52,6 @@ final class SwiftPMBuildSystemTests: XCTestCase {
     }
   }
 
-  func testUnparsablePackage() async throws {
-    let fs = localFileSystem
-    try await withTestScratchDir { tempDir in
-      try fs.createFiles(
-        root: tempDir,
-        files: [
-          "pkg/Sources/lib/a.swift": "",
-          "pkg/Package.swift": """
-          // swift-tools-version:4.2
-          import PackageDescription
-          let pack
-          """,
-        ]
-      )
-      let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.forTesting
-      let buildSystem = try await SwiftPMBuildSystem(
-        projectRoot: packageRoot,
-        toolchainRegistry: tr,
-        fileSystem: fs,
-        options: SourceKitLSPOptions(),
-        messageHandler: nil,
-        testHooks: SwiftPMTestHooks()
-      )
-      await assertThrowsError(try await buildSystem.generateBuildGraph())
-    }
-  }
-
   func testNoToolchain() async throws {
     let fs = localFileSystem
     try await withTestScratchDir { tempDir in
@@ -139,7 +111,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -205,7 +177,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aPlusSomething = packageRoot.appending(components: "Sources", "lib", "a+something.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -269,7 +241,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
@@ -312,7 +284,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift))
@@ -350,7 +322,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -400,7 +372,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -456,7 +428,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -501,7 +473,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -583,7 +555,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -636,7 +608,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 =
@@ -705,7 +677,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       for file in [acpp, ah] {
         let args = try unwrap(
@@ -746,7 +718,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
@@ -815,7 +787,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         messageHandler: nil,
         testHooks: SwiftPMTestHooks()
       )
-      try await swiftpmBuildSystem.generateBuildGraph()
+      await swiftpmBuildSystem.waitForUpToDateBuildGraph()
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
       let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
