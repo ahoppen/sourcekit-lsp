@@ -57,10 +57,6 @@ package actor CompilationDatabaseBuildSystem {
 
   let fileSystem: FileSystem
 
-  /// The URIs for which the delegate has registered for change notifications,
-  /// mapped to the language the delegate specified when registering for change notifications.
-  var watchedFiles: Set<DocumentURI> = []
-
   private var _indexStorePath: AbsolutePath?
   package var indexStorePath: AbsolutePath? {
     if let indexStorePath = _indexStorePath {
@@ -153,15 +149,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
-  }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    self.watchedFiles.insert(uri)
-  }
-
-  /// We don't support change watching.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles.remove(uri)
   }
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {

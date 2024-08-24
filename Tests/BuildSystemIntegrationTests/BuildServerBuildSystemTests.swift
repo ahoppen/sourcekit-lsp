@@ -67,24 +67,27 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() async throws {
-
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
-    let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(settingsExpectations: [[DocumentURI(fileUrl)]: expectation])
+    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
+    let expectation = XCTestExpectation(description: "\(uri) settings updated")
+    let buildSystemDelegate = TestDelegate(settingsExpectations: [[uri]: expectation])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
     let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
     await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    _ = await buildSystem.buildSettings(
+      request: BuildSettingsRequest(
+        uri: uri,
+        target: try unwrap(await buildSystem.textDocumentTargets(TextDocumentTargetsRequest(uri: uri)).targets.only)
+      )
+    )
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetsChanged() async throws {
-
-    let fileUrl = URL(fileURLWithPath: "/some/file/path")
+    let uri = DocumentURI(filePath: "/some/file/path", isDirectory: false)
     let expectation = XCTestExpectation(description: "target changed")
     let buildSystemDelegate = TestDelegate(targetExpectations: [
       nil: expectation
@@ -94,7 +97,12 @@ final class BuildServerBuildSystemTests: XCTestCase {
       _fixLifetime(buildSystemDelegate)
     }
     let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    _ = await buildSystem.buildSettings(
+      request: BuildSettingsRequest(
+        uri: uri,
+        target: try unwrap(await buildSystem.textDocumentTargets(TextDocumentTargetsRequest(uri: uri)).targets.only)
+      )
+    )
 
     try await fulfillmentOfOrThrow([expectation])
   }

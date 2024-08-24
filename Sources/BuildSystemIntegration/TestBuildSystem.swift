@@ -37,9 +37,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: BuildSettingsResponse] = [:]
 
-  /// Files currently being watched by our delegate.
-  private var watchedFiles: Set<DocumentURI> = []
-
   private weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   package init(
@@ -90,14 +87,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
-  }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) async {
-    watchedFiles.insert(uri)
-  }
-
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    watchedFiles.remove(uri)
   }
 
   package func didChangeWatchedFiles(

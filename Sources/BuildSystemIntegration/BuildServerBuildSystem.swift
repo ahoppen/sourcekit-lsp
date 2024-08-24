@@ -81,6 +81,8 @@ package actor BuildServerBuildSystem: MessageHandler {
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
+  private var urisRegisteredForChanges: Set<URI> = []
+
   package init(
     projectRoot: AbsolutePath,
     messageHandler: BuiltInBuildSystemMessageHandler?,
@@ -271,9 +273,25 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
   package nonisolated var supportsPreparation: Bool { false }
 
   package func buildSettings(request: BuildSettingsRequest) -> BuildSettingsResponse? {
+    if !urisRegisteredForChanges.contains(request.uri) {
+      let request = RegisterForChanges(uri: request.uri, action: .register)
+      _ = self.buildServer?.send(request) { result in
+        if let error = result.failure {
+          logger.error("Error registering \(request.uri): \(error.forLogging)")
+
+          Task {
+            // BuildServer registration failed, so tell our delegate that no build
+            // settings are available.
+            await self.buildSettingsChanged(for: request.uri, settings: nil)
+          }
+        }
+      }
+    }
+
     guard let buildSettings = buildSettings[request.uri] else {
       return nil
     }
+
     return BuildSettingsResponse(
       compilerArguments: buildSettings.compilerArguments,
       workingDirectory: buildSettings.workingDirectory
@@ -309,32 +327,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     logMessageToIndexLog: @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void
   ) async throws {
     throw PrepareNotSupportedError()
-  }
-
-  package func registerForChangeNotifications(for uri: DocumentURI) {
-    let request = RegisterForChanges(uri: uri, action: .register)
-    _ = self.buildServer?.send(request) { result in
-      if let error = result.failure {
-        logger.error("Error registering \(uri): \(error.forLogging)")
-
-        Task {
-          // BuildServer registration failed, so tell our delegate that no build
-          // settings are available.
-          await self.buildSettingsChanged(for: uri, settings: nil)
-        }
-      }
-    }
-  }
-
-  /// Unregister the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
-  package func unregisterForChangeNotifications(for uri: DocumentURI) {
-    let request = RegisterForChanges(uri: uri, action: .unregister)
-    _ = self.buildServer?.send(request) { result in
-      if let error = result.failure {
-        logger.error("Error unregistering \(uri.forLogging): \(error.forLogging)")
-      }
-    }
   }
 
   package func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) {}
