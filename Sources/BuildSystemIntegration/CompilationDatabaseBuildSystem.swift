@@ -222,14 +222,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     }
   }
 
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if database(for: uri) != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
-
   package func sourceFiles() async -> [SourceFileInfo] {
     guard let compdb else {
       return []

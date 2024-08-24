@@ -121,8 +121,6 @@ final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler 
     }
   }
 
-  func fileHandlingCapabilityChanged() {}
-
   func handle<R: RequestType>(_ request: R) async throws -> R.Response {
     throw ResponseError.methodNotFound(R.method)
   }

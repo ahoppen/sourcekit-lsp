@@ -461,11 +461,8 @@ extension SwiftPMBuildSystem {
       targets[configuredTarget] = (buildTarget, depth)
     }
 
-    if let delegate = self.delegate {
-      await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
-      await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
-      await delegate.fileHandlingCapabilityChanged()
-    }
+    await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
+    await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
     for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
       await testFilesDidChangeCallback()
     }
@@ -823,13 +820,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
-  }
-
-  package func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if configuredTargets(for: uri).isEmpty {
-      return .unhandled
-    }
-    return .handled
   }
 
   package func sourceFiles() -> [SourceFileInfo] {

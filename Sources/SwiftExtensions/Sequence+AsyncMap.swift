@@ -54,4 +54,17 @@ extension Sequence {
 
     return result
   }
+
+  /// Just like `Sequence.map` but allows an `async` transform function.
+  package func asyncFirst(
+    @_inheritActorContext _ predicate: @Sendable (Element) async throws -> Bool
+  ) async rethrows -> Element? {
+    for element in self {
+      if try await predicate(element) {
+        return element
+      }
+    }
+
+    return nil
+  }
 }

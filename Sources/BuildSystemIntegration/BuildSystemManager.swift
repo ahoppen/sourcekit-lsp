@@ -83,7 +83,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
-  let fallbackBuildSystem: FallbackBuildSystem?
+  let fallbackBuildSystem: FallbackBuildSystem
 
   /// Provider of file to main file mappings.
   var mainFilesProvider: MainFilesProvider?
@@ -103,11 +103,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
-  package var projectRoot: AbsolutePath? {
-    get async {
-      return await buildSystem?.underlyingBuildSystem.projectRoot
-    }
-  }
+  package let projectRoot: AbsolutePath?
 
   package var supportsPreparation: Bool {
     get async {
@@ -124,6 +120,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystem)
     self.toolchainRegistry = toolchainRegistry
+    self.projectRoot = buildSystemKind?.projectRoot
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
@@ -147,7 +144,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     case let notification as DidChangeBuildSettingsNotification:
       await self.didChangeBuildSettings(notification: notification)
     case let notification as DidChangeTextDocumentTargetsNotification:
-      self.didChangeTextDocumentTargets(notification: notification)
+      await self.didChangeTextDocumentTargets(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
@@ -312,7 +309,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
 
-    guard var settings = await fallbackBuildSystem?.buildSettings(for: document, language: language) else {
+    guard var settings = await fallbackBuildSystem.buildSettings(for: document, language: language) else {
       return nil
     }
     if buildSystem == nil {
@@ -398,13 +395,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     }
   }
 
-  package func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
-    return max(
-      await buildSystem?.underlyingBuildSystem.fileHandlingCapability(for: uri) ?? .unhandled,
-      fallbackBuildSystem != nil ? .fallback : .unhandled
-    )
-  }
-
   package func sourceFiles() async -> [SourceFileInfo] {
     return await buildSystem?.underlyingBuildSystem.sourceFiles() ?? []
   }
@@ -464,19 +454,14 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  package func fileHandlingCapabilityChanged() async {
-    if let delegate = self.delegate {
-      await delegate.fileHandlingCapabilityChanged()
-    }
-  }
-
-  private func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) {
+  private func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) async {
     if let uris = notification.uris {
       let uris = Set(uris)
       self.cachedTargetsForDocument.clear(where: { uris.contains($0.uri) })
     } else {
       self.cachedTargetsForDocument.clearAll()
     }
+    await delegate?.fileHandlingCapabilityChanged()
   }
 }
 
