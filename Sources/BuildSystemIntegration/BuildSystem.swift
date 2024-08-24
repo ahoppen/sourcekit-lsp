@@ -205,6 +205,17 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     self.underlyingBuildSystem = buildSystem
   }
 
+  private func initialize(
+    request: BuildSystemIntegrationProtocol.InitializeRequest
+  ) async -> BuildSystemIntegrationProtocol.InitializeResponse {
+    return await BuildSystemIntegrationProtocol.InitializeResponse(
+      indexStorePath: underlyingBuildSystem.indexStorePath?.pathString,
+      indexDatabasePath: underlyingBuildSystem.indexDatabasePath?.pathString,
+      watchers: [],
+      capabilities: BuildSystemCapabilities(supportsPreparation: underlyingBuildSystem.supportsPreparation)
+    )
+  }
+
   package func send<R: RequestType>(_ request: R) async throws -> R.Response {
     logger.info(
       """
@@ -231,6 +242,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     switch request {
     case let request as BuildSettingsRequest:
       return try await handle(request, underlyingBuildSystem.buildSettings)
+    case let request as BuildSystemIntegrationProtocol.InitializeRequest:
+      return try await handle(request, self.initialize)
     case let request as TextDocumentTargetsRequest:
       return try await handle(request, underlyingBuildSystem.textDocumentTargets)
     case let request as PrepareTargetsRequest:

@@ -168,7 +168,6 @@ package final class Workspace: Sendable {
       }
     }
 
-    let projectRoot = await buildSystem?.projectRoot.pathString
     let buildSystemType =
       if let buildSystem {
         String(describing: type(of: buildSystem))
@@ -176,7 +175,7 @@ package final class Workspace: Sendable {
         "<fallback build system>"
       }
     logger.log(
-      "Created workspace at \(rootUri.forLogging) as \(buildSystemType, privacy: .public) with project root \(projectRoot ?? "<nil>")"
+      "Created workspace at \(rootUri.forLogging) as \(buildSystemType, privacy: .public) with project root \(buildSystemKind?.projectRoot.pathString ?? "<nil>")"
     )
 
     var index: IndexStoreDB? = nil
@@ -185,11 +184,11 @@ package final class Workspace: Sendable {
     let indexOptions = options.index
     let indexStorePath = await firstNonNil(
       AbsolutePath(validatingOrNil: indexOptions.indexStorePath),
-      await buildSystem?.indexStorePath
+      await AbsolutePath(validatingOrNil: buildSystemManager.indexStorePath)
     )
     let indexDatabasePath = await firstNonNil(
       AbsolutePath(validatingOrNil: indexOptions.indexDatabasePath),
-      await buildSystem?.indexDatabasePath
+      await AbsolutePath(validatingOrNil: buildSystemManager.indexDatabasePath)
     )
     if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
       do {

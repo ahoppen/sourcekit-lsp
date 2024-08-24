@@ -12,7 +12,9 @@
 
 import LanguageServerProtocol
 
-public struct SourceKitLSPCapabilities: Sendable, Codable {}
+public struct SourceKitLSPCapabilities: Sendable, Codable {
+  public init() {}
+}
 
 public struct InitializeRequest: RequestType {
   public static let method = "initialize"

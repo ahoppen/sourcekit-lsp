@@ -74,7 +74,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// The files for which the delegate has requested change notifications, ie.
   /// the files for which the delegate wants to get `filesDependenciesUpdated`
   /// callbacks if the file's build settings.
-  var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
+  private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
   ///
@@ -83,18 +83,20 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
-  let fallbackBuildSystem: FallbackBuildSystem
+  private let fallbackBuildSystem: FallbackBuildSystem
 
   /// Provider of file to main file mappings.
-  var mainFilesProvider: MainFilesProvider?
+  private var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  var delegate: BuildSystemManagerDelegate?
+  private var delegate: BuildSystemManagerDelegate?
 
   /// The list of toolchains that are available.
   ///
   /// Used to determine which toolchain to use for a given document.
   private let toolchainRegistry: ToolchainRegistry
+
+  private var initializeResult: Task<BuildSystemIntegrationProtocol.InitializeResponse?, Never>!
 
   private let cachedTextDocumentTargets = RequestCache<TextDocumentTargetsRequest>()
 
@@ -107,9 +109,21 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// was found.
   package let projectRoot: AbsolutePath?
 
+  package var indexStorePath: String? {
+    get async {
+      return await initializeResult.value?.indexStorePath
+    }
+  }
+
+  package var indexDatabasePath: String? {
+    get async {
+      return await initializeResult.value?.indexDatabasePath
+    }
+  }
+
   package var supportsPreparation: Bool {
     get async {
-      return await buildSystem?.underlyingBuildSystem.supportsPreparation ?? false
+      return await initializeResult.value?.capabilities.supportsPreparation ?? false
     }
   }
 
@@ -131,6 +145,20 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       messageHandler: self
     )
+    initializeResult = Task { () -> BuildSystemIntegrationProtocol.InitializeResponse? in
+      guard let buildSystem else {
+        return nil
+      }
+      guard let buildSystemKind else {
+        logger.fault("Created build system without a build system kind?")
+        return nil
+      }
+      return await orLog("Initializing build system") {
+        try await buildSystem.send(
+          InitializeRequest(rootUri: buildSystemKind.projectRoot.pathString, capabilities: SourceKitLSPCapabilities())
+        )
+      }
+    }
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
