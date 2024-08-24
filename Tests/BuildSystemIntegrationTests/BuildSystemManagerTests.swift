@@ -352,7 +352,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let depUpdate2 = expectation(description: "dependencies update 2")
     await del.setExpectedDependenciesUpdate([(a, depUpdate2, #file, #line)])
 
-    await bsm.filesDependenciesUpdated([a])
+    await bsm.handle(DidUpdateTextDocumentDependenciesNotification(documents: [a]))
     try await fulfillmentOfOrThrow([depUpdate2])
   }
 }
@@ -379,7 +379,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
   }
 }
 
-/// A `BuildSystemDelegate` setup for testing.
+/// A `BuildSystemManagerDelegate` setup for testing.
 private actor BSMDelegate: BuildSystemManagerDelegate {
   fileprivate typealias ExpectedBuildSettingChangedCall = (
     uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,

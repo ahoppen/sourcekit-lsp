@@ -147,13 +147,6 @@ package actor SwiftPMBuildSystem {
   /// issues in SwiftPM.
   private let packageLoadingQueue = AsyncQueue<Serial>()
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemIntegration.BuildSystemDelegate? = nil
-
-  package func setDelegate(_ delegate: BuildSystemIntegration.BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
@@ -356,13 +349,10 @@ package actor SwiftPMBuildSystem {
     self.fileDependenciesUpdatedDebouncer = Debouncer(
       debounceDuration: .milliseconds(500),
       combineResults: { $0.union($1) }
-    ) {
-      [weak self] (filesWithUpdatedDependencies) in
-      guard let delegate = await self?.delegate else {
-        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
-        return
-      }
-      await delegate.filesDependenciesUpdated(filesWithUpdatedDependencies)
+    ) { [weak self] (filesWithUpdatedDependencies) in
+      await self?.messageHandler?.handle(
+        DidUpdateTextDocumentDependenciesNotification(documents: Array(filesWithUpdatedDependencies))
+      )
     }
   }
 

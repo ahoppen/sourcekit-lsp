@@ -131,7 +131,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       messageHandler: self
     )
-    await self.buildSystem?.underlyingBuildSystem.setDelegate(self)
   }
 
   package func filesDidChange(_ events: [FileEvent]) async {
@@ -145,10 +144,13 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     switch notification {
     case let notification as DidChangeBuildSettingsNotification:
       await self.didChangeBuildSettings(notification: notification)
+
     case let notification as DidChangeTextDocumentTargetsNotification:
       await self.didChangeTextDocumentTargets(notification: notification)
     case let notification as DidChangeWorkspaceSourceFilesNotification:
       await self.didChangeWorkspaceSourceFiles(notification: notification)
+    case let notification as DidUpdateTextDocumentDependenciesNotification:
+      await self.didUpdateTextDocumentDependencies(notification: notification)
     case let notification as BuildSystemIntegrationProtocol.LogMessageNotification:
       await self.logMessage(notification: notification)
     default:
@@ -409,7 +411,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 }
 
-extension BuildSystemManager: BuildSystemDelegate {
+extension BuildSystemManager {
   private func watchedFilesReferencing(mainFiles: Set<DocumentURI>) -> Set<DocumentURI> {
     return Set(
       watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
@@ -438,22 +440,6 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
-    // Empty changes --> assume everything has changed.
-    guard !changedFiles.isEmpty else {
-      if let delegate = self.delegate {
-        await delegate.filesDependenciesUpdated(changedFiles)
-      }
-      return
-    }
-
-    // Need to map the changed main files back into changed watch files.
-    let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
-    if let delegate, !changedWatchedFiles.isEmpty {
-      await delegate.filesDependenciesUpdated(changedWatchedFiles)
-    }
-  }
-
   private func didChangeTextDocumentTargets(notification: DidChangeTextDocumentTargetsNotification) async {
     if let uris = notification.uris {
       let uris = Set(uris)
@@ -467,6 +453,10 @@ extension BuildSystemManager: BuildSystemDelegate {
   private func didChangeWorkspaceSourceFiles(notification: DidChangeWorkspaceSourceFilesNotification) async {
     cachedWorkspaceSourceFiles.clearAll()
     await self.delegate?.sourceFilesDidChange()
+  }
+
+  private func didUpdateTextDocumentDependencies(notification: DidUpdateTextDocumentDependenciesNotification) async {
+    await self.delegate?.filesDependenciesUpdated(Set(notification.documents))
   }
 
   private func logMessage(notification: BuildSystemIntegrationProtocol.LogMessageNotification) async {

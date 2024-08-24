@@ -75,7 +75,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
       _fixLifetime(buildSystemDelegate)
     }
     let buildSystem = try await BuildServerBuildSystem(projectRoot: root, messageHandler: buildSystemDelegate)
-    await buildSystem.setDelegate(buildSystemDelegate)
     _ = await buildSystem.buildSettings(
       request: BuildSettingsRequest(
         uri: uri,
@@ -108,25 +107,16 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 }
 
-final class TestDelegate: BuildSystemDelegate, BuiltInBuildSystemMessageHandler {
+final class TestDelegate: BuiltInBuildSystemMessageHandler {
   let settingsExpectations: [[DocumentURI]?: XCTestExpectation]
   let targetExpectations: [[DocumentURI]?: XCTestExpectation]
-  let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
   package init(
     settingsExpectations: [[DocumentURI]?: XCTestExpectation] = [:],
-    targetExpectations: [[DocumentURI]?: XCTestExpectation] = [:],
-    dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
+    targetExpectations: [[DocumentURI]?: XCTestExpectation] = [:]
   ) {
     self.settingsExpectations = settingsExpectations
     self.targetExpectations = targetExpectations
-    self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
-  }
-
-  package func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    for uri in changedFiles {
-      dependenciesUpdatedExpectations[uri]?.fulfill()
-    }
   }
 
   func handle<R: RequestType>(_ request: R) async throws -> R.Response {

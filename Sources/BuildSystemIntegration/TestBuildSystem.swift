@@ -17,8 +17,7 @@ import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
 
-/// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
-/// and other components.
+/// Build system to be used for testing BuildSystem functionality with SourceKitLSPServer and other components.
 package actor TestBuildSystem: BuiltInBuildSystem {
   package static func projectRoot(for workspaceFolder: AbsolutePath, options: SourceKitLSPOptions) -> AbsolutePath? {
     return workspaceFolder
@@ -27,12 +26,6 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   package let projectRoot: AbsolutePath
   package let indexStorePath: AbsolutePath? = nil
   package let indexDatabasePath: AbsolutePath? = nil
-
-  weak package var delegate: BuildSystemDelegate?
-
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
 
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: BuildSettingsResponse] = [:]

@@ -39,13 +39,6 @@ package actor CompilationDatabaseBuildSystem {
     }
   }
 
-  /// Delegate to handle any build system events.
-  package weak var delegate: BuildSystemDelegate? = nil
-
-  package func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   package weak var messageHandler: BuiltInBuildSystemMessageHandler?
 
   package let projectRoot: AbsolutePath
