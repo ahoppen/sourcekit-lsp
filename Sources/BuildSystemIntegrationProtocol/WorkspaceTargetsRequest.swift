@@ -26,30 +26,9 @@ public struct WorkspaceTargetsResponse: ResponseType {
     /// The direct (non-transitive) dependencies of `target`.
     public var dependencies: [ConfiguredTarget]
 
-    /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
-    /// to a dependency of the project.
-    public var isPartOfRootProject: Bool
-
-    /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
-    /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
-    /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
-    /// perform.
-    public var mayContainTests: Bool
-
-    public var sourceFiles: [DocumentURI]
-
-    public init(
-      target: ConfiguredTarget,
-      dependencies: [ConfiguredTarget],
-      isPartOfRootProject: Bool,
-      mayContainTests: Bool,
-      sourceFiles: [DocumentURI]
-    ) {
+    public init(target: ConfiguredTarget, dependencies: [ConfiguredTarget]) {
       self.target = target
       self.dependencies = dependencies
-      self.isPartOfRootProject = isPartOfRootProject
-      self.mayContainTests = mayContainTests
-      self.sourceFiles = sourceFiles
     }
 
   }
