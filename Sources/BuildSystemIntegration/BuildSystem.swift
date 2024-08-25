@@ -132,7 +132,9 @@ package enum BuildSystemKind {
 
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
-package actor BuiltInBuildSystemAdapter: MessageHandler {
+package actor BuiltInBuildSystemAdapter: QueueBasedMessageHandler {
+  package static let signpostLoggingCategory: String = "build-system-message-handling"
+
   /// The underlying build system.
   // FIXME: This should be private, all messages should go through BSIP. Only accessible from the outside for transition
   // purposes.
@@ -140,7 +142,7 @@ package actor BuiltInBuildSystemAdapter: MessageHandler {
   private let connectionToSourceKitLSP: LocalConnection
 
   // FIXME: Can we have more fine-grained dependency tracking here?
-  private let messageHandlingQueue = AsyncQueue<Serial>()
+  package let messageHandlingQueue = AsyncQueue<Serial>()
 
   init?(
     buildSystemKind: BuildSystemKind?,
@@ -179,19 +181,7 @@ package actor BuiltInBuildSystemAdapter: MessageHandler {
     )
   }
 
-  nonisolated package func handle(_ notification: some NotificationType) {
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
-      .makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: notification))")
-    messageHandlingQueue.async {
-      signposter.emitEvent("Start handling", id: signpostID)
-      await self.handleImpl(notification)
-      signposter.endInterval("Notification", state, "Done")
-    }
-  }
-
-  private func handleImpl(_ notification: some NotificationType) async {
+  package func handleImpl(_ notification: some NotificationType) async {
     switch notification {
     case let notification as DidChangeWatchedFilesNotification:
       await self.underlyingBuildSystem.didChangeWatchedFiles(notification: notification)
@@ -200,60 +190,7 @@ package actor BuiltInBuildSystemAdapter: MessageHandler {
     }
   }
 
-  package nonisolated func handle<R: RequestType>(
-    _ params: R,
-    id: RequestID,
-    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
-  ) {
-    // FIXME: Can we share this between the different message handler implementations?
-    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
-      .makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
-
-    messageHandlingQueue.async {
-      signposter.emitEvent("Start handling", id: signpostID)
-      await withTaskCancellationHandler {
-        await self.handleImpl(params, id: id, reply: reply)
-        signposter.endInterval("Request", state, "Done")
-      } onCancel: {
-        signposter.emitEvent("Cancelled", id: signpostID)
-      }
-    }
-  }
-
-  private func handleImpl<Request: RequestType>(
-    _ request: Request,
-    id: RequestID,
-    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) async {
-    let startDate = Date()
-
-    let request = RequestAndReply(request) { result in
-      reply(result)
-      let endDate = Date()
-      Task {
-        switch result {
-        case .success(let response):
-          logger.log(
-            """
-            Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(Request.method, privacy: .public)
-            \(response.forLogging)
-            """
-          )
-        case .failure(let error):
-          logger.log(
-            """
-            Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            \(Request.method, privacy: .public)(\(id, privacy: .public))
-            \(error.forLogging, privacy: .private)
-            """
-          )
-        }
-      }
-    }
-
+  package func handleImpl<Request: RequestType>(_ request: RequestAndReply<Request>) async {
     switch request {
     case let request as RequestAndReply<BuildSettingsRequest>:
       await request.reply { try await underlyingBuildSystem.buildSettings(request: request.params) }
