@@ -26,24 +26,23 @@ import os
 #endif
 
 fileprivate class RequestCache<Request: RequestType & Hashable> {
-  private var storage: [Request: Result<Request.Response, Error>] = [:]
+  private var storage: [Request: Task<Request.Response, Error>] = [:]
 
   func get(
     _ key: Request,
     isolation: isolated any Actor = #isolation,
-    compute: (Request) async throws(Error) -> Request.Response
+    compute: @Sendable @escaping (Request) async throws(Error) -> Request.Response
   ) async throws(Error) -> Request.Response {
+    let task: Task<Request.Response, Error>
     if let cached = storage[key] {
-      return try cached.get()
+      task = cached
+    } else {
+      task = Task {
+        try await compute(key)
+      }
+      storage[key] = task
     }
-    let computed: Result<Request.Response, Error>
-    do {
-      computed = .success(try await compute(key))
-    } catch {
-      computed = .failure(error)
-    }
-    storage[key] = computed
-    return try computed.get()
+    return try await task.value
   }
 
   func clear(where condition: (Request) -> Bool, isolation: isolated any Actor = #isolation) {
