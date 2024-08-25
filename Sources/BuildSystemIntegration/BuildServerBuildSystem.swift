@@ -226,7 +226,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   func handleBuildTargetsChanged(
     _ notification: BuildTargetsChangedNotification
   ) async {
-    await self.messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
+    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeTextDocumentTargetsNotification(uris: nil))
   }
 
   func handleFileOptionsChanged(
@@ -244,7 +244,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   /// about the changed build settings.
   private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
     buildSettings[document] = settings
-    await self.messageHandler?.handle(DidChangeBuildSettingsNotification(uris: [document]))
+    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: [document]))
   }
 }
 

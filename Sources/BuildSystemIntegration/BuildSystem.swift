@@ -93,8 +93,8 @@ protocol BuiltInBuildSystemAdapterDelegate: Sendable {
 // FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
 // LocalConnection for the communication.
 package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
-  func handle(_ notification: some NotificationType) async
-  func handle<R: RequestType>(_ request: R) async throws -> R.Response
+  func sendNotificationToSourceKitLSP(_ notification: some NotificationType) async
+  func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response
 }
 
 /// Create a build system of the given type.
@@ -254,7 +254,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     }
   }
 
-  package func handle(_ notification: some LanguageServerProtocol.NotificationType) async {
+  package func sendNotificationToSourceKitLSP(_ notification: some LanguageServerProtocol.NotificationType) async {
     logger.info(
       """
       Received notification from build system
@@ -264,7 +264,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
     await messageHandler.handle(notification)
   }
 
-  package func handle<R: RequestType>(_ request: R) async throws -> R.Response {
+  package func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
     logger.info(
       """
       Received request from build system

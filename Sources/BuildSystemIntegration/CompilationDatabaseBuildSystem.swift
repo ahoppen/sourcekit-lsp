@@ -166,8 +166,8 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       self.fileSystem
     )
 
-    await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
-    await messageHandler?.handle(DidChangeWorkspaceSourceFilesNotification())
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: nil))
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeWorkspaceSourceFilesNotification())
   }
 
   package func didChangeWatchedFiles(

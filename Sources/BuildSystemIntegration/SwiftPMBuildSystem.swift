@@ -353,7 +353,7 @@ package actor SwiftPMBuildSystem {
       debounceDuration: .milliseconds(500),
       combineResults: { $0.union($1) }
     ) { [weak self] (filesWithUpdatedDependencies) in
-      await self?.messageHandler?.handle(
+      await self?.messageHandler?.sendNotificationToSourceKitLSP(
         DidUpdateTextDocumentDependenciesNotification(documents: Array(filesWithUpdatedDependencies))
       )
     }
@@ -451,10 +451,10 @@ extension SwiftPMBuildSystem {
       buildTargets[configuredTarget] = buildTarget
     }
 
-    await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
-    await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
-    await messageHandler?.handle(DidChangeWorkspaceSourceFilesNotification())
-    await messageHandler?.handle(DidChangeWorkspaceTargetsNotification())
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeTextDocumentTargetsNotification(uris: nil))
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: nil))
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeWorkspaceSourceFilesNotification())
+    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeWorkspaceTargetsNotification())
   }
 }
 
@@ -593,7 +593,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   private nonisolated func logMessageToIndexLog(_ taskID: IndexTaskID, _ message: String) {
     // FIXME: When `messageHandler` is a Connection, we don't need to go via Task anymore
     Task {
-      await self.messageHandler?.handle(
+      await self.messageHandler?.sendNotificationToSourceKitLSP(
         BuildSystemIntegrationProtocol.LogMessageNotification(
           task: taskID.rawValue,
           type: .info,

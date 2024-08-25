@@ -119,11 +119,11 @@ final class TestDelegate: BuiltInBuildSystemMessageHandler {
     self.targetExpectations = targetExpectations
   }
 
-  func handle<R: RequestType>(_ request: R) async throws -> R.Response {
+  func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
     throw ResponseError.methodNotFound(R.method)
   }
 
-  func handle(_ notification: some NotificationType) async {
+  func sendNotificationToSourceKitLSP(_ notification: some NotificationType) async {
     switch notification {
     case let notification as DidChangeTextDocumentTargetsNotification:
       targetExpectations[notification.uris]?.fulfill()

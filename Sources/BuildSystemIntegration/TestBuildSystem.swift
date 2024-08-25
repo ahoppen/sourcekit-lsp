@@ -42,7 +42,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package func setBuildSettings(for uri: DocumentURI, to buildSettings: BuildSettingsResponse?) async {
     buildSettingsByFile[uri] = buildSettings
-    await self.messageHandler?.handle(DidChangeBuildSettingsNotification(uris: [uri]))
+    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: [uri]))
   }
 
   nonisolated package var supportsPreparation: Bool { false }
