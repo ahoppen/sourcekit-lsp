@@ -194,7 +194,7 @@ package actor SwiftPMBuildSystem {
   /// Maps configured targets ids to their SwiftPM build target as well as the depth at which they occur in the build
   /// graph. Top level targets on which no other target depends have a depth of `1`. Targets with dependencies have a
   /// greater depth.
-  private var targets: [ConfiguredTarget: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
+  private var buildTargets: [ConfiguredTarget: SwiftBuildTarget] = [:]
 
   /// Maps targets to the target that depends on it. Ie. this is an inverted `dependencies` list.
   private var targetDependents: [ConfiguredTarget: Set<ConfiguredTarget>] = [:]
@@ -434,16 +434,13 @@ extension SwiftPMBuildSystem {
     /// properties because otherwise we might end up in an inconsistent state
     /// with only some properties modified.
 
-    self.targets = [:]
+    self.buildTargets = [:]
     self.fileToTargets = [:]
     self.targetDependents = [:]
 
     buildDescription.traverseModules { buildTarget, parent, depth in
       let configuredTarget = ConfiguredTarget(buildTarget)
-      var depth = depth
-      if let existingDepth = targets[configuredTarget]?.depth {
-        depth = max(existingDepth, depth)
-      } else {
+      if buildTargets[configuredTarget] == nil {
         for source in buildTarget.sources + buildTarget.headers {
           fileToTargets[DocumentURI(source), default: []].insert(configuredTarget)
         }
@@ -451,7 +448,7 @@ extension SwiftPMBuildSystem {
       if let parent {
         self.targetDependents[configuredTarget, default: []].insert(ConfiguredTarget(parent))
       }
-      targets[configuredTarget] = (buildTarget, depth)
+      buildTargets[configuredTarget] = buildTarget
     }
 
     await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
@@ -519,7 +516,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       return try settings(forPackageManifest: path)
     }
 
-    guard let buildTarget = self.targets[request.target]?.buildTarget else {
+    guard let buildTarget = self.buildTargets[request.target] else {
       logger.fault("Did not find target \(request.target.identifier)")
       return nil
     }
@@ -586,20 +583,12 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     await self.packageLoadingQueue.async {}.valuePropagatingCancellation
   }
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
-      let lhsDepth = self.targets[lhs]?.depth ?? 0
-      let rhsDepth = self.targets[rhs]?.depth ?? 0
-      return lhsDepth > rhsDepth
-    }
-  }
-
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
     for target in request.targets {
       await orLog("Preparing") { try await prepare(singleTarget: target) }
     }
-    let filesInPreparedTargets = request.targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
+    let filesInPreparedTargets = request.targets.flatMap { self.buildTargets[$0]?.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
     return VoidResponse()
   }
@@ -767,7 +756,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
         continue
       }
       for target in targets {
-        filesWithUpdatedDependencies.formUnion(self.targets[target]?.buildTarget.sources.map(DocumentURI.init) ?? [])
+        filesWithUpdatedDependencies.formUnion(self.buildTargets[target]?.sources.map(DocumentURI.init) ?? [])
       }
     }
 
@@ -788,11 +777,11 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
 
   package func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse {
     var sourceFiles: [DocumentURI: SourceFileInfo] = [:]
-    for (buildTarget, depth) in self.targets.values {
+    for buildTarget in self.buildTargets.values {
       for sourceFile in buildTarget.sources {
         let uri = DocumentURI(sourceFile)
         sourceFiles[uri] = SourceFileInfo(
-          isPartOfRootProject: depth == 1 || (sourceFiles[uri]?.isPartOfRootProject ?? false),
+          isPartOfRootProject: buildTarget.isPartOfRootPackage || (sourceFiles[uri]?.isPartOfRootProject ?? false),
           mayContainTests: true
         )
       }

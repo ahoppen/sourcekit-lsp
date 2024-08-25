@@ -105,6 +105,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   private let cachedWorkspaceTargets = RequestCache<WorkspaceTargetsRequest>()
 
+  private var cachedTargetHeights: (workspaceTargets: WorkspaceTargetsResponse, heights: [ConfiguredTarget: Int])? = nil
+
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
@@ -391,8 +393,48 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
   }
 
+  private func targetHeights(for workspaceTargets: WorkspaceTargetsResponse) -> [ConfiguredTarget: Int] {
+    if let cachedTargetHeights, cachedTargetHeights.workspaceTargets == workspaceTargets {
+      return cachedTargetHeights.heights
+    }
+    // Leaf nodes have height 0, any dependent of the leaf node has a height that's one higher than the leaf node.
+    var heights: [ConfiguredTarget: Int] = [:]
+    var nonLeafs: Set<ConfiguredTarget> = []
+    for (_, targetInfo) in workspaceTargets.targets {
+      nonLeafs.formUnion(targetInfo.dependents)
+    }
+    var worksList: [(target: ConfiguredTarget, height: Int)] = workspaceTargets.targets.keys
+      .filter { !nonLeafs.contains($0) }
+      .map { ($0, 0) }
+    while let (target, height) = worksList.popLast() {
+      heights[target] = max(heights[target, default: 0], height)
+      for dependency in workspaceTargets.targets[target]?.dependents ?? [] {
+        // Check if we have already recorded this target with a greater height, in which case visiting it again will
+        // not increase its height or any of its children.
+        if heights[target, default: 0] < height + 1 {
+          worksList.append((dependency, height + 1))
+        }
+      }
+    }
+    cachedTargetHeights = (workspaceTargets, heights)
+    return heights
+  }
+
+  /// Sort the targets so that low-level targets occur before high-level targets.
+  ///
+  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
+  /// index data to be available earlier.
+  ///
+  /// `nil` if the build system doesn't support topological sorting of targets.
   package func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
-    return await buildSystem?.underlyingBuildSystem.topologicalSort(of: targets)
+    guard let workspaceTargets = try await workspaceTargets() else {
+      return nil
+    }
+
+    let heights = targetHeights(for: workspaceTargets)
+    return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
+      return heights[lhs, default: 0] < heights[rhs, default: 0]
+    }
   }
 
   package func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {

@@ -304,10 +304,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package func waitForUpToDateBuildGraph() async {}
 
-  package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
-    return nil
-  }
-
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()
   }

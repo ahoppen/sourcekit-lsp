@@ -21,8 +21,8 @@ public struct WorkspaceTargetsRequest: RequestType, Hashable {
   public init() {}
 }
 
-public struct WorkspaceTargetsResponse: ResponseType {
-  public struct TargetInfo: Sendable, Codable {
+public struct WorkspaceTargetsResponse: ResponseType, Hashable {
+  public struct TargetInfo: Sendable, Codable, Hashable {
     /// The targets that depend on this target
     public var dependents: [ConfiguredTarget]
 
