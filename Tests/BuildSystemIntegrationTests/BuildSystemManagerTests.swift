@@ -47,7 +47,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: nil,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: nil,
       reloadPackageStatusCallback: { _ in }
     )
@@ -108,7 +108,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
@@ -139,7 +139,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
@@ -163,7 +163,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
@@ -203,7 +203,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
@@ -266,7 +266,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
@@ -312,7 +312,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
@@ -359,7 +359,7 @@ final class BuildSystemManagerTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
-      swiftpmTestHooks: SwiftPMTestHooks(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: del,
       reloadPackageStatusCallback: { _ in }
     )

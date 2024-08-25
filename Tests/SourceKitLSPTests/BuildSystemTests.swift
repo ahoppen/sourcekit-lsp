@@ -48,7 +48,7 @@ final class BuildSystemTests: XCTestCase {
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: .forTesting,
       options: .testDefault(),
-      swiftpmTestHooks: .init(),
+      buildSystemTestHooks: BuildSystemTestHooks(),
       delegate: server,
       reloadPackageStatusCallback: { _ in }
     )

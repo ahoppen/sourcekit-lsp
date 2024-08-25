@@ -158,7 +158,7 @@ package final class Workspace: Sendable {
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      swiftpmTestHooks: testHooks.swiftpmTestHooks,
+      buildSystemTestHooks: testHooks.buildSystemTestHooks,
       delegate: buildSystemManagerDelegate,
       reloadPackageStatusCallback: reloadPackageStatusCallback
     )

@@ -138,7 +138,7 @@ package actor BuildSystemManager: MessageHandler {
     buildSystemKind: BuildSystemKind?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    swiftpmTestHooks: SwiftPMTestHooks,
+    buildSystemTestHooks: BuildSystemTestHooks,
     delegate: BuildSystemManagerDelegate?,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
@@ -152,7 +152,7 @@ package actor BuildSystemManager: MessageHandler {
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      swiftpmTestHooks: swiftpmTestHooks,
+      buildSystemTestHooks: buildSystemTestHooks,
       connectionToSourceKitLSP: connectionFromBuildSystemToSourceKitLSP,
       reloadPackageStatusCallback: reloadPackageStatusCallback
     )
