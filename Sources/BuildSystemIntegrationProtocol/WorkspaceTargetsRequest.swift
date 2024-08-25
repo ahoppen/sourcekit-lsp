@@ -13,34 +13,34 @@
 import LanguageServerProtocol
 
 /// Request sent from SourceKit-LSP to the build system to get all targets within the project and their dependencies.
-public struct WorkspaceTargetsRequest: RequestType {
+public struct WorkspaceTargetsRequest: RequestType, Hashable {
   public typealias Response = WorkspaceTargetsResponse
 
   public static let method: String = "workspace/targets"
+
+  public init() {}
 }
 
 public struct WorkspaceTargetsResponse: ResponseType {
   public struct TargetInfo: Sendable, Codable {
-    public var target: ConfiguredTarget
-
     /// The direct (non-transitive) dependencies of `target`.
     public var dependencies: [ConfiguredTarget]
 
-    public init(target: ConfiguredTarget, dependencies: [ConfiguredTarget]) {
-      self.target = target
+    public init(dependencies: [ConfiguredTarget]) {
       self.dependencies = dependencies
     }
-
   }
 
-  public var targets: [TargetInfo]
+  public var targets: [ConfiguredTarget: TargetInfo]
 
-  public init(targets: [WorkspaceTargetsResponse.TargetInfo]) {
+  public init(targets: [ConfiguredTarget: TargetInfo]) {
     self.targets = targets
   }
 }
 
 /// Request sent from the build system to SourceKit-LSP to indicate that the targets in the project or their dependencies have changed.
-public struct DidChangeTargetsNotification: NotificationType {
+public struct DidChangeWorkspaceTargetsNotification: NotificationType {
   public static let method: String = "workspace/didChangeTargets"
+
+  public init() {}
 }

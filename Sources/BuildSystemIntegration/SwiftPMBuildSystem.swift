@@ -196,6 +196,8 @@ package actor SwiftPMBuildSystem {
   /// greater depth.
   private var targets: [ConfiguredTarget: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
 
+  private var targetDependencies: [ConfiguredTarget: Set<ConfiguredTarget>] = [:]
+
   static package func projectRoot(
     for path: TSCBasic.AbsolutePath,
     options: SourceKitLSPOptions
@@ -433,6 +435,8 @@ extension SwiftPMBuildSystem {
 
     self.targets = [:]
     self.fileToTargets = [:]
+    self.targetDependencies = [:]
+
     buildDescription.traverseModules { buildTarget, parent, depth in
       let configuredTarget = ConfiguredTarget(buildTarget)
       var depth = depth
@@ -443,12 +447,16 @@ extension SwiftPMBuildSystem {
           fileToTargets[DocumentURI(source), default: []].insert(configuredTarget)
         }
       }
+      if let parent {
+        self.targetDependencies[configuredTarget, default: []].insert(ConfiguredTarget(parent))
+      }
       targets[configuredTarget] = (buildTarget, depth)
     }
 
     await messageHandler?.handle(DidChangeTextDocumentTargetsNotification(uris: nil))
     await messageHandler?.handle(DidChangeBuildSettingsNotification(uris: nil))
     await messageHandler?.handle(DidChangeWorkspaceSourceFilesNotification())
+    await messageHandler?.handle(DidChangeWorkspaceTargetsNotification())
   }
 }
 
@@ -582,27 +590,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
       let lhsDepth = self.targets[lhs]?.depth ?? 0
       let rhsDepth = self.targets[rhs]?.depth ?? 0
       return lhsDepth > rhsDepth
-    }
-  }
-
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    let targetDepths = targets.compactMap { self.targets[$0]?.depth }
-    let minimumTargetDepth: Int?
-    if targetDepths.count == targets.count {
-      minimumTargetDepth = targetDepths.max()
-    } else {
-      // One of the targets didn't have an entry in self.targets. We don't know what might depend on it.
-      minimumTargetDepth = nil
-    }
-
-    // Files that occur before the target in the topological sorting don't depend on it.
-    // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
-    // a flattened list (https://github.com/swiftlang/sourcekit-lsp/issues/1312).
-    return self.targets.compactMap { (configuredTarget, value) -> ConfiguredTarget? in
-      if let minimumTargetDepth, value.depth >= minimumTargetDepth {
-        return nil
-      }
-      return configuredTarget
     }
   }
 
@@ -816,6 +803,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   private func settings(forPackageManifest path: AbsolutePath) throws -> BuildSettingsResponse? {
     let compilerArgs = workspace.interpreterFlags(for: path.parentDirectory) + [path.pathString]
     return BuildSettingsResponse(compilerArguments: compilerArgs)
+  }
+
+  package func workspaceTargets(request: WorkspaceTargetsRequest) -> WorkspaceTargetsResponse {
+    let targets = self.targetDependencies.mapValues { dependencies in
+      WorkspaceTargetsResponse.TargetInfo(dependencies: Array(dependencies))
+    }
+    return WorkspaceTargetsResponse(targets: targets)
   }
 }
 

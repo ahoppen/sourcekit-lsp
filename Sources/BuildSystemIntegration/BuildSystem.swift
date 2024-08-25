@@ -76,15 +76,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// `nil` if the build system doesn't support topological sorting of targets.
   func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]?
 
-  /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
-  /// `target` is modified.
-  ///
-  /// The returned list can be an over-approximation, in which case the indexer will perform more work than strictly
-  /// necessary by scheduling re-preparation of a target where it isn't necessary.
-  ///
-  /// Returning `nil` indicates that all targets should be considered depending on the given target.
-  func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]?
-
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
   func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
@@ -101,6 +92,8 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   ///
   /// Header files should not be considered as source files because they cannot be compiled.
   func sourceFiles(request: WorkspaceSourceFilesRequest) async -> WorkspaceSourceFilesResponse
+
+  func workspaceTargets(request: WorkspaceTargetsRequest) async -> WorkspaceTargetsResponse
 }
 
 // FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
@@ -230,7 +223,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       logger.info(
         """
         Received response for request to build system
-        \(request.forLogging)
+        \(response.forLogging)
         """
       )
       return response
@@ -247,6 +240,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       return try await handle(request, underlyingBuildSystem.prepare)
     case let request as WorkspaceSourceFilesRequest:
       return try await handle(request, underlyingBuildSystem.sourceFiles)
+    case let request as WorkspaceTargetsRequest:
+      return try await handle(request, underlyingBuildSystem.workspaceTargets)
     default:
       throw ResponseError.methodNotFound(R.method)
     }

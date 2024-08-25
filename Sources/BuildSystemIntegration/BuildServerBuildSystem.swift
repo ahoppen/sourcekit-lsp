@@ -42,6 +42,10 @@ func executable(_ name: String) -> String {
   #endif
 }
 
+extension ConfiguredTarget {
+  static var dummy: ConfiguredTarget { ConfiguredTarget(identifier: "dummy") }
+}
+
 /// A `BuildSystem` based on communicating with a build server
 ///
 /// Provides build settings from a build server launched based on a
@@ -295,16 +299,12 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
   }
 
   package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
-    return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
+    return TextDocumentTargetsResponse(targets: [ConfiguredTarget.dummy])
   }
 
   package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
-    return nil
-  }
-
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -318,6 +318,12 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/swiftlang/sourcekit-lsp/issues/1173).
     return WorkspaceSourceFilesResponse(sourceFiles: [:])
+  }
+
+  package func workspaceTargets(request: WorkspaceTargetsRequest) async -> WorkspaceTargetsResponse {
+    return WorkspaceTargetsResponse(targets: [
+      ConfiguredTarget.dummy: WorkspaceTargetsResponse.TargetInfo(dependencies: [])
+    ])
   }
 }
 

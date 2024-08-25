@@ -104,6 +104,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
 
   private let cachedWorkspaceSourceFiles = RequestCache<WorkspaceSourceFilesRequest>()
 
+  private let cachedWorkspaceTargets = RequestCache<WorkspaceTargetsRequest>()
+
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
@@ -177,6 +179,8 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       await self.didChangeTextDocumentTargets(notification: notification)
     case let notification as DidChangeWorkspaceSourceFilesNotification:
       await self.didChangeWorkspaceSourceFiles(notification: notification)
+    case let notification as DidChangeWorkspaceTargetsNotification:
+      await self.didChangeWorkspaceTargets(notification: notification)
     case let notification as DidUpdateTextDocumentDependenciesNotification:
       await self.didUpdateTextDocumentDependencies(notification: notification)
     case let notification as BuildSystemIntegrationProtocol.LogMessageNotification:
@@ -393,7 +397,13 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
-    return await buildSystem?.underlyingBuildSystem.targets(dependingOn: targets)
+    let workspaceTargets = await orLog("Getting workspace targets") { try await self.workspaceTargets() }
+    guard let workspaceTargets else {
+      return nil
+    }
+    return targets.flatMap {
+      workspaceTargets.targets[$0]?.dependencies ?? []
+    }
   }
 
   package func prepare(
@@ -432,6 +442,15 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       }
       return uri
     }.sorted(by: { $0.pseudoPath < $1.pseudoPath })
+  }
+
+  private func workspaceTargets() async throws -> WorkspaceTargetsResponse? {
+    guard let buildSystem else {
+      return nil
+    }
+    return try await cachedWorkspaceTargets.get(WorkspaceTargetsRequest()) { request in
+      try await buildSystem.send(request)
+    }
   }
 }
 
@@ -477,6 +496,10 @@ extension BuildSystemManager {
   private func didChangeWorkspaceSourceFiles(notification: DidChangeWorkspaceSourceFilesNotification) async {
     cachedWorkspaceSourceFiles.clearAll()
     await self.delegate?.sourceFilesDidChange()
+  }
+
+  private func didChangeWorkspaceTargets(notification: DidChangeWorkspaceTargetsNotification) async {
+    cachedWorkspaceTargets.clearAll()
   }
 
   private func didUpdateTextDocumentDependencies(notification: DidUpdateTextDocumentDependenciesNotification) async {

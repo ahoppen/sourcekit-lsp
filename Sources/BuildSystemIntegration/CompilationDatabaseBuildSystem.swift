@@ -115,7 +115,7 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   }
 
   package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
-    return TextDocumentTargetsResponse(targets: [ConfiguredTarget(identifier: "dummy")])
+    return TextDocumentTargetsResponse(targets: [ConfiguredTarget.dummy])
   }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
@@ -125,10 +125,6 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
   package func waitForUpToDateBuildGraph() async {}
 
   package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
-    return nil
-  }
-
-  package func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -197,5 +193,11 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
       sourceFiles[command.uri] = SourceFileInfo()
     }
     return WorkspaceSourceFilesResponse(sourceFiles: sourceFiles)
+  }
+
+  package func workspaceTargets(request: WorkspaceTargetsRequest) async -> WorkspaceTargetsResponse {
+    return WorkspaceTargetsResponse(targets: [
+      ConfiguredTarget.dummy: WorkspaceTargetsResponse.TargetInfo(dependencies: [])
+    ])
   }
 }

@@ -17,4 +17,13 @@ public struct ConfiguredTarget: Codable, Sendable, Hashable {
   public init(identifier: String) {
     self.identifier = identifier
   }
+
+  public init(from decoder: Decoder) throws {
+    let identifier = try decoder.singleValueContainer().decode(String.self)
+    self.init(identifier: identifier)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    try identifier.encode(to: encoder)
+  }
 }
