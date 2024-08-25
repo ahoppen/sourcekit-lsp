@@ -26,8 +26,16 @@ public struct WorkspaceTargetsResponse: ResponseType, Hashable {
     /// The targets that depend on this target
     public var dependents: [ConfiguredTarget]
 
-    public init(dependents: [ConfiguredTarget]) {
+    /// The toolchain that should be used to build this target. The URI should point to the directory that contains the
+    /// `usr` directory. On macOS, this is typically a bundle ending in `.xctoolchain`. If the toolchain is installed to
+    /// `/` on Linux, the toolchain URI would point to `/`.
+    ///
+    /// If no toolchain is given, SourceKit-LSP will pick a toolchain to use for this target.
+    public var toolchain: DocumentURI?
+
+    public init(dependents: [ConfiguredTarget], toolchain: DocumentURI?) {
       self.dependents = dependents
+      self.toolchain = toolchain
     }
   }
 

@@ -204,9 +204,14 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   /// Returns the toolchain that should be used to process the given document.
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    if let toolchain = await buildSystem?.underlyingBuildSystem.toolchain(for: uri, language) {
-      return toolchain
+  package func toolchain(for uri: DocumentURI, in target: ConfiguredTarget?, language: Language) async -> Toolchain? {
+    if let target, let toolchainUri = try? await self.workspaceTargets()?.targets[target]?.toolchain,
+      let toolchainPath = AbsolutePath(validatingOrNil: toolchainUri.fileURL?.path)
+    {
+      if let toolchain = await self.toolchainRegistry.toolchain(withPath: toolchainPath) {
+        return toolchain
+      }
+      logger.error("Toolchain at \(toolchainUri.forLogging) not registered in toolchain registry.")
     }
 
     switch language {

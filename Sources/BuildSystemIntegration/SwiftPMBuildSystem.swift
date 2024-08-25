@@ -548,10 +548,6 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     )
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return toolchain
-  }
-
   package func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
     guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine targets for non-file URIs.
@@ -797,7 +793,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
 
   package func workspaceTargets(request: WorkspaceTargetsRequest) -> WorkspaceTargetsResponse {
     let targets = self.targetDependents.mapValues { dependents in
-      WorkspaceTargetsResponse.TargetInfo(dependents: Array(dependents))
+      WorkspaceTargetsResponse.TargetInfo(dependents: Array(dependents), toolchain: toolchain.path?.asURI)
     }
     return WorkspaceTargetsResponse(targets: targets)
   }
@@ -810,5 +806,11 @@ extension Basics.Diagnostic.Severity {
     case .info: return .info
     case .debug: return .debug
     }
+  }
+}
+
+fileprivate extension TSCBasic.AbsolutePath {
+  var asURI: DocumentURI? {
+    DocumentURI(self.asURL)
   }
 }

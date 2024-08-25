@@ -294,10 +294,6 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     )
   }
 
-  package func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    return nil
-  }
-
   package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
     return TextDocumentTargetsResponse(targets: [ConfiguredTarget.dummy])
   }
@@ -318,7 +314,7 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
 
   package func workspaceTargets(request: WorkspaceTargetsRequest) async -> WorkspaceTargetsResponse {
     return WorkspaceTargetsResponse(targets: [
-      ConfiguredTarget.dummy: WorkspaceTargetsResponse.TargetInfo(dependents: [])
+      ConfiguredTarget.dummy: WorkspaceTargetsResponse.TargetInfo(dependents: [], toolchain: nil)
     ])
   }
 }

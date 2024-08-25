@@ -72,11 +72,6 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   /// dependencies.
   func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse
 
-  /// The toolchain that should be used to open the given document.
-  ///
-  /// If `nil` is returned, then the default toolchain for the given language is used.
-  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain?
-
   /// Called when files in the project change.
   func didChangeWatchedFiles(notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification) async
 
