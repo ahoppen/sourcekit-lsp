@@ -48,8 +48,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: nil,
-      reloadPackageStatusCallback: { _ in }
+      delegate: nil
     )
     await bsm.setMainFilesProvider(mainFiles)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
@@ -109,8 +108,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -140,8 +138,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -164,8 +161,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -204,8 +200,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -267,8 +262,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -313,8 +307,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -360,8 +353,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: del,
-      reloadPackageStatusCallback: { _ in }
+      delegate: del
     )
     await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
@@ -472,4 +464,12 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
   nonisolated func logMessageToIndexLog(taskID: BuildSystemIntegration.IndexTaskID, message: String) {}
 
   func sourceFilesDidChange() async {}
+
+  nonisolated func sendNotificationToClient(_ notification: some NotificationType) {}
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    throw ResponseError.methodNotFound(R.method)
+  }
+
+  func waitUntilInitialized() async {}
 }

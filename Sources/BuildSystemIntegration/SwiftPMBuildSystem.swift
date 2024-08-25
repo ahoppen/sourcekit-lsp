@@ -46,14 +46,6 @@ fileprivate typealias AbsolutePath = Basics.AbsolutePath
 @preconcurrency import SPMBuildCore
 #endif
 
-/// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
-///
-/// Informs the callback about whether `reloadPackage` started or finished executing.
-package enum ReloadPackageStatus: Sendable {
-  case start
-  case end
-}
-
 /// A build target in SwiftPM
 package typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
 
@@ -155,10 +147,7 @@ package actor SwiftPMBuildSystem {
   /// issues in SwiftPM.
   private let packageLoadingQueue = AsyncQueue<Serial>()
 
-  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
-
-  /// This callback is informed when `reloadPackage` starts and ends executing.
-  private var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
+  package let connectionToSourceKitLSP: any Connection
 
   /// Debounces calls to `delegate.filesDependenciesUpdated`.
   ///
@@ -237,15 +226,13 @@ package actor SwiftPMBuildSystem {
   ///   - projectRoot: The directory containing `Package.swift`
   ///   - toolchainRegistry: The toolchain registry to use to provide the Swift compiler used for
   ///     manifest parsing and runtime support.
-  ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Throws: If there is an error loading the package, or no manifest is found.
   package init(
     projectRoot: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     options: SourceKitLSPOptions,
-    messageHandler: (any BuiltInBuildSystemMessageHandler)?,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in },
+    connectionToSourceKitLSP: any Connection,
     testHooks: SwiftPMTestHooks
   ) async throws {
     self.projectRoot = projectRoot
@@ -260,7 +247,7 @@ package actor SwiftPMBuildSystem {
 
     self.toolchain = toolchain
     self.testHooks = testHooks
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
     guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
@@ -354,14 +341,12 @@ package actor SwiftPMBuildSystem {
       flags: buildFlags
     )
 
-    self.reloadPackageStatusCallback = reloadPackageStatusCallback
-
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
     self.fileDependenciesUpdatedDebouncer = Debouncer(
       debounceDuration: .milliseconds(500),
       combineResults: { $0.union($1) }
     ) { [weak self] (filesWithUpdatedDependencies) in
-      await self?.messageHandler?.sendNotificationToSourceKitLSP(
+      self?.connectionToSourceKitLSP.send(
         DidUpdateTextDocumentDependenciesNotification(documents: Array(filesWithUpdatedDependencies))
       )
     }
@@ -376,15 +361,12 @@ package actor SwiftPMBuildSystem {
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
-  /// - Parameters:
-  ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
   package init?(
     projectRoot: TSCBasic.AbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    messageHandler: any BuiltInBuildSystemMessageHandler,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void,
+    connectionToSourceKitLSP: any Connection,
     testHooks: SwiftPMTestHooks
   ) async {
     do {
@@ -393,8 +375,7 @@ package actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         options: options,
-        messageHandler: messageHandler,
-        reloadPackageStatusCallback: reloadPackageStatusCallback,
+        connectionToSourceKitLSP: connectionToSourceKitLSP,
         testHooks: testHooks
       )
     } catch Error.noManifest {
@@ -412,12 +393,18 @@ extension SwiftPMBuildSystem {
   ///
   /// - Important: Must only be called on `packageLoadingQueue`.
   private func reloadPackageAssumingOnPackageLoadingQueue() async throws {
-    await reloadPackageStatusCallback(.start)
+    let progressManager = WorkDoneProgressManager(
+      connectionToClient: self.connectionToSourceKitLSP,
+      waitUntilClientInitialized: {},
+      tokenPrefix: "package-reloading",
+      initialDebounce: options.workDoneProgressDebounceDurationOrDefault,
+      title: "SourceKit-LSP: Reloading Package"
+    )
     await testHooks.reloadPackageDidStart?()
     defer {
       Task {
+        await progressManager?.end()
         await testHooks.reloadPackageDidFinish?()
-        await reloadPackageStatusCallback(.end)
       }
     }
 
@@ -459,10 +446,10 @@ extension SwiftPMBuildSystem {
       buildTargets[configuredTarget] = buildTarget
     }
 
-    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeTextDocumentTargetsNotification(uris: nil))
-    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: nil))
-    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeWorkspaceSourceFilesNotification())
-    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeWorkspaceTargetsNotification())
+    connectionToSourceKitLSP.send(DidChangeTextDocumentTargetsNotification(uris: nil))
+    connectionToSourceKitLSP.send(DidChangeBuildSettingsNotification(uris: nil))
+    connectionToSourceKitLSP.send(DidChangeWorkspaceSourceFilesNotification())
+    connectionToSourceKitLSP.send(DidChangeWorkspaceTargetsNotification())
   }
 }
 
@@ -599,16 +586,13 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   private nonisolated func logMessageToIndexLog(_ taskID: IndexTaskID, _ message: String) {
-    // FIXME: When `messageHandler` is a Connection, we don't need to go via Task anymore
-    Task {
-      await self.messageHandler?.sendNotificationToSourceKitLSP(
-        BuildSystemIntegrationProtocol.LogMessageNotification(
-          task: taskID.rawValue,
-          type: .info,
-          message: message
-        )
+    connectionToSourceKitLSP.send(
+      BuildSystemIntegrationProtocol.LogMessageNotification(
+        task: taskID.rawValue,
+        type: .info,
+        message: message
       )
-    }
+    )
   }
 
   private func prepare(

@@ -102,12 +102,6 @@ package actor SourceKitLSPServer {
 
   /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
   /// `SourceKitLSPServer`.
-  /// `nonisolated(unsafe)` because `packageLoadingWorkDoneProgress` will not be modified after it is assigned from the
-  /// initializer.
-  private nonisolated(unsafe) var packageLoadingWorkDoneProgress: SharedWorkDoneProgressManager!
-
-  /// Implicitly unwrapped optional so we can create an `SharedWorkDoneProgressManager` that has a weak reference to
-  /// `SourceKitLSPServer`.
   /// `nonisolated(unsafe)` because `sourcekitdCrashedWorkDoneProgress` will not be modified after it is assigned from
   /// the initializer.
   nonisolated(unsafe) var sourcekitdCrashedWorkDoneProgress: SharedWorkDoneProgressManager!
@@ -200,11 +194,6 @@ package actor SourceKitLSPServer {
     ])
     self.indexProgressManager = nil
     self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
-    self.packageLoadingWorkDoneProgress = SharedWorkDoneProgressManager(
-      sourceKitLSPServer: self,
-      tokenPrefix: "package-reloading",
-      title: "SourceKit-LSP: Reloading Package"
-    )
     self.sourcekitdCrashedWorkDoneProgress = SharedWorkDoneProgressManager(
       sourceKitLSPServer: self,
       tokenPrefix: "sourcekitd-crashed",
@@ -214,7 +203,7 @@ package actor SourceKitLSPServer {
   }
 
   /// Await until the server has send the reply to the initialize request.
-  func waitUntilInitialized() async {
+  package func waitUntilInitialized() async {
     // The polling of `initialized` is not perfect but it should be OK, because
     //  - In almost all cases the server should already be initialized.
     //  - If it's not initialized, we expect initialization to finish fairly quickly. Even if initialization takes 5s
@@ -901,15 +890,6 @@ extension SourceKitLSPServer {
 
   // MARK: - General
 
-  private func reloadPackageStatusCallback(_ status: ReloadPackageStatus) async {
-    switch status {
-    case .start:
-      await packageLoadingWorkDoneProgress.start()
-    case .end:
-      await packageLoadingWorkDoneProgress.end()
-    }
-  }
-
   /// Creates a workspace at the given `uri`.
   ///
   /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
@@ -951,9 +931,6 @@ extension SourceKitLSPServer {
       },
       indexProgressStatusDidChange: { [weak self] in
         self?.indexProgressManager.indexProgressStatusDidChange()
-      },
-      reloadPackageStatusCallback: { [weak self] status in
-        await self?.reloadPackageStatusCallback(status)
       }
     )
     if options.backgroundIndexingOrDefault, workspace.semanticIndexManager == nil,
@@ -1083,9 +1060,6 @@ extension SourceKitLSPServer {
           },
           indexProgressStatusDidChange: { [weak self] in
             self?.indexProgressManager.indexProgressStatusDidChange()
-          },
-          reloadPackageStatusCallback: { [weak self] status in
-            await self?.reloadPackageStatusCallback(status)
           }
         )
 

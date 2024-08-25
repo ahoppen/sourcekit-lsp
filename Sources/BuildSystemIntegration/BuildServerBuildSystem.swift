@@ -72,7 +72,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   package private(set) var indexDatabasePath: AbsolutePath?
   package private(set) var indexStorePath: AbsolutePath?
 
-  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+  package let connectionToSourceKitLSP: any Connection
 
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
@@ -81,7 +81,7 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   package init(
     projectRoot: AbsolutePath,
-    messageHandler: BuiltInBuildSystemMessageHandler?,
+    connectionToSourceKitLSP: any Connection,
     fileSystem: FileSystem = localFileSystem
   ) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
@@ -101,18 +101,18 @@ package actor BuildServerBuildSystem: MessageHandler {
     #endif
     self.projectRoot = projectRoot
     self.serverConfig = config
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
     try await self.initializeBuildServer()
   }
 
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  package init?(projectRoot: AbsolutePath?, messageHandler: BuiltInBuildSystemMessageHandler?) async {
+  package init?(projectRoot: AbsolutePath?, connectionToSourceKitLSP: any Connection) async {
     guard let projectRoot else { return nil }
 
     do {
-      try await self.init(projectRoot: projectRoot, messageHandler: messageHandler)
+      try await self.init(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
     } catch is FileSystemError {
       // config file was missing, no build server for this workspace
       return nil
@@ -225,8 +225,8 @@ package actor BuildServerBuildSystem: MessageHandler {
 
   func handleBuildTargetsChanged(
     _ notification: BuildTargetsChangedNotification
-  ) async {
-    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeTextDocumentTargetsNotification(uris: nil))
+  ) {
+    self.connectionToSourceKitLSP.send(DidChangeTextDocumentTargetsNotification(uris: nil))
   }
 
   func handleFileOptionsChanged(
@@ -244,7 +244,7 @@ package actor BuildServerBuildSystem: MessageHandler {
   /// about the changed build settings.
   private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
     buildSettings[document] = settings
-    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: [document]))
+    self.connectionToSourceKitLSP.send(DidChangeBuildSettingsNotification(uris: [document]))
   }
 }
 

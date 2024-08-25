@@ -151,16 +151,14 @@ package final class Workspace: Sendable {
     buildSystemManagerDelegate: BuildSystemManagerDelegate,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
-    indexProgressStatusDidChange: @Sendable @escaping () -> Void,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+    indexProgressStatusDidChange: @Sendable @escaping () -> Void
   ) async {
     let buildSystemManager = await BuildSystemManager(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
       options: options,
       buildSystemTestHooks: testHooks.buildSystemTestHooks,
-      delegate: buildSystemManagerDelegate,
-      reloadPackageStatusCallback: reloadPackageStatusCallback
+      delegate: buildSystemManagerDelegate
     )
     let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem
 

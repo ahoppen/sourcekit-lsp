@@ -49,8 +49,7 @@ final class BuildSystemTests: XCTestCase {
       toolchainRegistry: .forTesting,
       options: .testDefault(),
       buildSystemTestHooks: BuildSystemTestHooks(),
-      delegate: server,
-      reloadPackageStatusCallback: { _ in }
+      delegate: server
     )
     buildSystem = try await unwrap(buildSystemManager.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
 

@@ -13,6 +13,7 @@
 import BuildSystemIntegration
 import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 import TSCBasic
 import XCTest
@@ -424,7 +425,7 @@ private func checkCompilationDatabaseBuildSystem(
   let buildSystem = CompilationDatabaseBuildSystem(
     projectRoot: try AbsolutePath(validating: "/a"),
     searchPaths: try [RelativePath(validating: ".")],
-    messageHandler: nil,
+    connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
     fileSystem: fs
   )
   try await block(XCTUnwrap(buildSystem))

@@ -39,7 +39,7 @@ package actor CompilationDatabaseBuildSystem {
     }
   }
 
-  package weak var messageHandler: BuiltInBuildSystemMessageHandler?
+  package let connectionToSourceKitLSP: any Connection
 
   package let projectRoot: AbsolutePath
 
@@ -70,13 +70,13 @@ package actor CompilationDatabaseBuildSystem {
   package init?(
     projectRoot: AbsolutePath,
     searchPaths: [RelativePath],
-    messageHandler: (any BuiltInBuildSystemMessageHandler)?,
+    connectionToSourceKitLSP: any Connection,
     fileSystem: FileSystem = localFileSystem
   ) {
     self.fileSystem = fileSystem
     self.projectRoot = projectRoot
     self.searchPaths = searchPaths
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
     if let compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths, fileSystem) {
       self.compdb = compdb
     } else {
@@ -159,22 +159,22 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
 
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
-  private func reloadCompilationDatabase() async {
+  private func reloadCompilationDatabase() {
     self.compdb = tryLoadCompilationDatabase(
       directory: projectRoot,
       additionalSearchPaths: searchPaths,
       self.fileSystem
     )
 
-    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: nil))
-    await messageHandler?.sendNotificationToSourceKitLSP(DidChangeWorkspaceSourceFilesNotification())
+    connectionToSourceKitLSP.send(DidChangeBuildSettingsNotification(uris: nil))
+    connectionToSourceKitLSP.send(DidChangeWorkspaceSourceFilesNotification())
   }
 
   package func didChangeWatchedFiles(
     notification: BuildSystemIntegrationProtocol.DidChangeWatchedFilesNotification
-  ) async {
+  ) {
     if notification.changes.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
-      await self.reloadCompilationDatabase()
+      self.reloadCompilationDatabase()
     }
   }
 

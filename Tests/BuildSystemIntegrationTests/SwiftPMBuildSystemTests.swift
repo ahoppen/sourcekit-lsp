@@ -16,6 +16,7 @@ import BuildSystemIntegrationProtocol
 import LanguageServerProtocol
 import PackageModel
 import SKOptions
+import SKSupport
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
@@ -80,7 +81,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
           options: SourceKitLSPOptions(),
-          messageHandler: nil,
+          connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
           testHooks: SwiftPMTestHooks()
         )
       )
@@ -112,7 +113,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -178,7 +179,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: localFileSystem,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -242,7 +243,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(swiftPM: options),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -285,7 +286,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -323,7 +324,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -373,7 +374,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -429,7 +430,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -474,7 +475,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -556,7 +557,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -609,7 +610,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -678,7 +679,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -719,7 +720,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()
@@ -788,7 +789,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         toolchainRegistry: tr,
         fileSystem: fs,
         options: SourceKitLSPOptions(),
-        messageHandler: nil,
+        connectionToSourceKitLSP: LocalConnection(name: "Dummy SourceKit-LSP"),
         testHooks: SwiftPMTestHooks()
       )
       await swiftpmBuildSystem.waitForUpToDateBuildGraph()

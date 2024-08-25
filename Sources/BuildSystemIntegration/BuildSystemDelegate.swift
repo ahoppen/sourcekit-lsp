@@ -30,7 +30,14 @@ package protocol BuildSystemManagerDelegate: AnyObject, Sendable {
   /// handling capability.
   func fileHandlingCapabilityChanged() async
 
+  // FIXME: Use `sendNotificationToClient`
   func logMessageToIndexLog(taskID: IndexTaskID, message: String)
+
+  func sendNotificationToClient(_ notification: some NotificationType)
+
+  func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response
+
+  func waitUntilInitialized() async
 
   /// Notify the delegate that the list of source files in the build system might have changed.
   func sourceFilesDidChange() async

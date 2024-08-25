@@ -30,19 +30,19 @@ package actor TestBuildSystem: BuiltInBuildSystem {
   /// Build settings by file.
   private var buildSettingsByFile: [DocumentURI: BuildSettingsResponse] = [:]
 
-  private weak var messageHandler: BuiltInBuildSystemMessageHandler?
+  private let connectionToSourceKitLSP: any Connection
 
   package init(
     projectRoot: AbsolutePath,
-    messageHandler: any BuiltInBuildSystemMessageHandler
+    connectionToSourceKitLSP: any Connection
   ) {
     self.projectRoot = projectRoot
-    self.messageHandler = messageHandler
+    self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
-  package func setBuildSettings(for uri: DocumentURI, to buildSettings: BuildSettingsResponse?) async {
+  package func setBuildSettings(for uri: DocumentURI, to buildSettings: BuildSettingsResponse?) {
     buildSettingsByFile[uri] = buildSettings
-    await self.messageHandler?.sendNotificationToSourceKitLSP(DidChangeBuildSettingsNotification(uris: [uri]))
+    self.connectionToSourceKitLSP.send(DidChangeBuildSettingsNotification(uris: [uri]))
   }
 
   nonisolated package var supportsPreparation: Bool { false }

@@ -84,42 +84,33 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   func workspaceTargets(request: WorkspaceTargetsRequest) async -> WorkspaceTargetsResponse
 }
 
-// FIXME: This should be a MessageHandler once we have migrated all build system queries to BSIP and can use
-// LocalConnection for the communication.
-package protocol BuiltInBuildSystemMessageHandler: AnyObject, Sendable {
-  func sendNotificationToSourceKitLSP(_ notification: some NotificationType) async
-  func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response
-}
-
 /// Create a build system of the given type.
 private func createBuildSystem(
   buildSystemKind: BuildSystemKind,
   options: SourceKitLSPOptions,
   buildSystemTestHooks: BuildSystemTestHooks,
   toolchainRegistry: ToolchainRegistry,
-  messageHandler: BuiltInBuildSystemMessageHandler,
-  reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+  connectionToSourceKitLSP: any Connection
 ) async -> BuiltInBuildSystem? {
   switch buildSystemKind {
   case .buildServer(let projectRoot):
-    return await BuildServerBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
+    return await BuildServerBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
   case .compilationDatabase(let projectRoot):
     return CompilationDatabaseBuildSystem(
       projectRoot: projectRoot,
       searchPaths: (options.compilationDatabase.searchPaths ?? []).compactMap { try? RelativePath(validating: $0) },
-      messageHandler: messageHandler
+      connectionToSourceKitLSP: connectionToSourceKitLSP
     )
   case .swiftPM(let projectRoot):
     return await SwiftPMBuildSystem(
       projectRoot: projectRoot,
       toolchainRegistry: toolchainRegistry,
       options: options,
-      messageHandler: messageHandler,
-      reloadPackageStatusCallback: reloadPackageStatusCallback,
+      connectionToSourceKitLSP: connectionToSourceKitLSP,
       testHooks: buildSystemTestHooks.swiftPMTestHooks
     )
   case .testBuildSystem(let projectRoot):
-    return TestBuildSystem(projectRoot: projectRoot, messageHandler: messageHandler)
+    return TestBuildSystem(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
   }
 }
 
@@ -141,7 +132,7 @@ package enum BuildSystemKind {
 
 /// A type that outwardly acts as a build server conforming to the Build System Integration Protocol and internally uses
 /// a `BuiltInBuildSystem` to satisfy the requests.
-package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, MessageHandler {
+package actor BuiltInBuildSystemAdapter: MessageHandler {
   /// The underlying build system.
   // FIXME: This should be private, all messages should go through BSIP. Only accessible from the outside for transition
   // purposes.
@@ -156,8 +147,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, Messa
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     buildSystemTestHooks: BuildSystemTestHooks,
-    connectionToSourceKitLSP: LocalConnection,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+    connectionToSourceKitLSP: LocalConnection
   ) async {
     guard let buildSystemKind else {
       return nil
@@ -169,8 +159,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, Messa
       options: options,
       buildSystemTestHooks: buildSystemTestHooks,
       toolchainRegistry: toolchainRegistry,
-      messageHandler: self,
-      reloadPackageStatusCallback: reloadPackageStatusCallback
+      connectionToSourceKitLSP: connectionToSourceKitLSP
     )
     guard let buildSystem else {
       return nil
@@ -216,6 +205,7 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, Messa
     id: RequestID,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
+    // FIXME: Can we share this between the different message handler implementations?
     let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
       .makeSignposter()
     let signpostID = signposter.makeSignpostID()
@@ -283,13 +273,4 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler, Messa
       await request.reply { throw ResponseError.methodNotFound(Request.method) }
     }
   }
-
-  package func sendNotificationToSourceKitLSP(_ notification: some NotificationType) {
-    connectionToSourceKitLSP.send(notification)
-  }
-
-  package func sendRequestToSourceKitLSP<R: RequestType>(_ request: R) async throws -> R.Response {
-    return try await connectionToSourceKitLSP.send(request)
-  }
-
 }

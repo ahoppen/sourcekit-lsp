@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import BuildSystemIntegrationProtocol
 import Dispatch
+import Foundation
 import LanguageServerProtocol
 import SKLogging
 import SKOptions
@@ -139,8 +140,7 @@ package actor BuildSystemManager: MessageHandler {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     buildSystemTestHooks: BuildSystemTestHooks,
-    delegate: BuildSystemManagerDelegate?,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+    delegate: BuildSystemManagerDelegate?
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystem)
     self.toolchainRegistry = toolchainRegistry
@@ -153,8 +153,7 @@ package actor BuildSystemManager: MessageHandler {
       toolchainRegistry: toolchainRegistry,
       options: options,
       buildSystemTestHooks: buildSystemTestHooks,
-      connectionToSourceKitLSP: connectionFromBuildSystemToSourceKitLSP,
-      reloadPackageStatusCallback: reloadPackageStatusCallback
+      connectionToSourceKitLSP: connectionFromBuildSystemToSourceKitLSP
     )
     if let buildSystem {
       let connectionFromSourceKitLSPToBuildSystem = LocalConnection(name: "Build System")
@@ -220,6 +219,8 @@ package actor BuildSystemManager: MessageHandler {
       await self.didUpdateTextDocumentDependencies(notification: notification)
     case let notification as BuildSystemIntegrationProtocol.LogMessageNotification:
       await self.logMessage(notification: notification)
+    case let notification as BuildSystemIntegrationProtocol.WorkDoneProgress:
+      await self.workDoneProgress(notification: notification)
     default:
       logger.error("Ignoring unknown notification \(type(of: notification).method)")
     }
@@ -228,12 +229,84 @@ package actor BuildSystemManager: MessageHandler {
   /// Implementation of `MessageHandler`, handling requests from the build system.
   ///
   /// - Important: Do not call directly.
-  nonisolated package func handle<Request: RequestType>(
+  nonisolated package func handle<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
+  ) {
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "build-system-message-handling")
+      .makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
+
+    messageHandlingQueue.async {
+      signposter.emitEvent("Start handling", id: signpostID)
+      await withTaskCancellationHandler {
+        await self.handleImpl(params, id: id, reply: reply)
+        signposter.endInterval("Request", state, "Done")
+      } onCancel: {
+        signposter.emitEvent("Cancelled", id: signpostID)
+      }
+    }
+  }
+
+  private func handleImpl<Request: RequestType>(
     _ request: Request,
     id: RequestID,
     reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
-  ) {
-    reply(.failure(ResponseError.methodNotFound(Request.method)))
+  ) async {
+    let startDate = Date()
+
+    let request = RequestAndReply(request) { result in
+      reply(result)
+      let endDate = Date()
+      Task {
+        switch result {
+        case .success(let response):
+          logger.log(
+            """
+            Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            \(Request.method, privacy: .public)
+            \(response.forLogging)
+            """
+          )
+        case .failure(let error):
+          logger.log(
+            """
+            Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            \(Request.method, privacy: .public)(\(id, privacy: .public))
+            \(error.forLogging, privacy: .private)
+            """
+          )
+        }
+      }
+    }
+
+    switch request {
+    case let request as RequestAndReply<BuildSystemIntegrationProtocol.CreateWorkDoneProgressRequest>:
+      await request.reply { try await self.createWorkDoneProgress(request: request.params) }
+    default:
+      await request.reply { throw ResponseError.methodNotFound(Request.method) }
+    }
+  }
+
+  private func createWorkDoneProgress(
+    request: BuildSystemIntegrationProtocol.CreateWorkDoneProgressRequest
+  ) async throws -> BuildSystemIntegrationProtocol.CreateWorkDoneProgressRequest.Response {
+    guard let delegate else {
+      throw ResponseError.unknown("Connection to client closed")
+    }
+    await delegate.waitUntilInitialized()
+    return try await delegate.sendRequestToClient(request as LanguageServerProtocol.CreateWorkDoneProgressRequest)
+  }
+
+  private func workDoneProgress(notification: BuildSystemIntegrationProtocol.WorkDoneProgress) async {
+    guard let delegate else {
+      logger.fault("Ignoring work done progress form build system because connection to client closed")
+      return
+    }
+    await delegate.waitUntilInitialized()
+    delegate.sendNotificationToClient(notification as LanguageServerProtocol.WorkDoneProgress)
   }
 
   /// Returns the toolchain that should be used to process the given document.
