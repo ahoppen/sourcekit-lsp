@@ -118,7 +118,9 @@ extension CompilationDatabaseBuildSystem: BuiltInBuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  package func waitForUpToDateBuildGraph() async {}
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
+  }
 
   private func database(for uri: DocumentURI) -> CompilationDatabase? {
     if let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) {

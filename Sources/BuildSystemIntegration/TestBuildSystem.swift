@@ -59,7 +59,9 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  package func waitForUpToDateBuildGraph() async {}
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
+  }
 
   package func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil

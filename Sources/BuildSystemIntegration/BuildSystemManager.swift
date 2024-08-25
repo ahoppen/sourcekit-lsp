@@ -148,6 +148,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       reloadPackageStatusCallback: reloadPackageStatusCallback,
       messageHandler: self
     )
+    // FIXME: Forward file watch patterns from this initialize request to the client
     initializeResult = Task { () -> BuildSystemIntegrationProtocol.InitializeResponse? in
       guard let buildSystem else {
         return nil
@@ -395,7 +396,9 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   }
 
   package func waitForUpToDateBuildGraph() async {
-    await self.buildSystem?.underlyingBuildSystem.waitForUpToDateBuildGraph()
+    await orLog("Waiting for build system updates") {
+      let _: VoidResponse? = try await self.buildSystem?.send(WaitForBuildSystemUpdatesRequest())
+    }
   }
 
   private func targetHeights(for workspaceTargets: WorkspaceTargetsResponse) -> [ConfiguredTarget: Int] {

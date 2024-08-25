@@ -66,7 +66,7 @@ package protocol BuiltInBuildSystem: AnyObject, Sendable {
   func textDocumentTargets(_ request: TextDocumentTargetsRequest) async throws -> TextDocumentTargetsResponse
 
   /// Wait until the build graph has been loaded.
-  func waitForUpToDateBuildGraph() async
+  func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
@@ -225,6 +225,8 @@ package actor BuiltInBuildSystemAdapter: BuiltInBuildSystemMessageHandler {
       return try await handle(request, underlyingBuildSystem.textDocumentTargets)
     case let request as PrepareTargetsRequest:
       return try await handle(request, underlyingBuildSystem.prepare)
+    case let request as WaitForBuildSystemUpdatesRequest:
+      return try await handle(request, underlyingBuildSystem.waitForUpBuildSystemUpdates)
     case let request as WorkspaceSourceFilesRequest:
       return try await handle(request, underlyingBuildSystem.sourceFiles)
     case let request as WorkspaceTargetsRequest:

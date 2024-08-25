@@ -298,7 +298,9 @@ extension BuildServerBuildSystem: BuiltInBuildSystem {
     return TextDocumentTargetsResponse(targets: [ConfiguredTarget.dummy])
   }
 
-  package func waitForUpToDateBuildGraph() async {}
+  package func waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest) async -> VoidResponse {
+    return VoidResponse()
+  }
 
   package func prepare(request: PrepareTargetsRequest) async throws -> VoidResponse {
     throw PrepareNotSupportedError()

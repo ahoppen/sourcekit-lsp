@@ -35,6 +35,10 @@ fileprivate extension SwiftPMBuildSystem {
     }
     return try await buildSettings(request: BuildSettingsRequest(uri: uri, target: target, language: language))
   }
+
+  func waitForUpToDateBuildGraph() async {
+    let _: VoidResponse = await self.waitForUpBuildSystemUpdates(request: WaitForBuildSystemUpdatesRequest())
+  }
 }
 
 final class SwiftPMBuildSystemTests: XCTestCase {
