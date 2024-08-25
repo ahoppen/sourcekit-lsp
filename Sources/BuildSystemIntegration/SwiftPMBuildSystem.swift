@@ -571,7 +571,7 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
     return []
   }
 
-  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+  package func textDocumentTargets(request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
     return TextDocumentTargetsResponse(targets: configuredTargets(for: request.uri))
   }
 

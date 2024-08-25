@@ -78,7 +78,9 @@ final class BuildServerBuildSystemTests: XCTestCase {
     _ = await buildSystem.buildSettings(
       request: BuildSettingsRequest(
         uri: uri,
-        target: try unwrap(await buildSystem.textDocumentTargets(TextDocumentTargetsRequest(uri: uri)).targets.only)
+        target: try unwrap(
+          await buildSystem.textDocumentTargets(request: TextDocumentTargetsRequest(uri: uri)).targets.only
+        )
       )
     )
 
@@ -99,7 +101,9 @@ final class BuildServerBuildSystemTests: XCTestCase {
     _ = await buildSystem.buildSettings(
       request: BuildSettingsRequest(
         uri: uri,
-        target: try unwrap(await buildSystem.textDocumentTargets(TextDocumentTargetsRequest(uri: uri)).targets.only)
+        target: try unwrap(
+          await buildSystem.textDocumentTargets(request: TextDocumentTargetsRequest(uri: uri)).targets.only
+        )
       )
     )
 

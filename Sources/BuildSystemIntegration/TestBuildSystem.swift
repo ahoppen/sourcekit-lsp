@@ -51,7 +51,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
     return buildSettingsByFile[request.uri]
   }
 
-  package func textDocumentTargets(_ request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
+  package func textDocumentTargets(request: TextDocumentTargetsRequest) -> TextDocumentTargetsResponse {
     return TextDocumentTargetsResponse(targets: [ConfiguredTarget.dummy])
   }
 

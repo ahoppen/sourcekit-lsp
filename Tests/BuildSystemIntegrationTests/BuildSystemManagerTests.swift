@@ -22,7 +22,7 @@ import XCTest
 
 fileprivate extension BuildSystemManager {
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    await self.handle(DidChangeBuildSettingsNotification(uris: Array(changedFiles)))
+    handle(DidChangeBuildSettingsNotification(uris: Array(changedFiles)))
   }
 }
 
@@ -118,6 +118,8 @@ final class BuildSystemManagerTests: XCTestCase {
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
 
     await bs.setBuildSettings(for: a, to: BuildSettingsResponse(compilerArguments: ["x"]))
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.compilerArguments, ["x"])
 
@@ -213,6 +215,8 @@ final class BuildSystemManagerTests: XCTestCase {
     await bs.setBuildSettings(for: cpp1, to: BuildSettingsResponse(compilerArguments: ["C++ 1"]))
     await bs.setBuildSettings(for: cpp2, to: BuildSettingsResponse(compilerArguments: ["C++ 2"]))
 
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
     await bsm.registerForChangeNotifications(for: h, language: .c)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c)?.compilerArguments, ["C++ 1"])
 
@@ -274,8 +278,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let cppArg = "C++ Main File"
     await bs.setBuildSettings(for: cpp, to: BuildSettingsResponse(compilerArguments: [cppArg, cpp.pseudoPath]))
 
-    await bsm.registerForChangeNotifications(for: h1, language: .c)
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
 
+    await bsm.registerForChangeNotifications(for: h1, language: .c)
     await bsm.registerForChangeNotifications(for: h2, language: .c)
 
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
@@ -318,6 +324,9 @@ final class BuildSystemManagerTests: XCTestCase {
     await bs.setBuildSettings(for: a, to: BuildSettingsResponse(compilerArguments: ["a"]))
     await bs.setBuildSettings(for: b, to: BuildSettingsResponse(compilerArguments: ["b"]))
     await bs.setBuildSettings(for: c, to: BuildSettingsResponse(compilerArguments: ["c"]))
+
+    // Wait for the new build settings to settle before registering for change notifications
+    await bsm.waitForUpToDateBuildGraph()
 
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: b, language: .swift)
@@ -367,7 +376,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let depUpdate2 = expectation(description: "dependencies update 2")
     await del.setExpectedDependenciesUpdate([(a, depUpdate2, #file, #line)])
 
-    await bsm.handle(DidUpdateTextDocumentDependenciesNotification(documents: [a]))
+    bsm.handle(DidUpdateTextDocumentDependenciesNotification(documents: [a]))
     try await fulfillmentOfOrThrow([depUpdate2])
   }
 }
