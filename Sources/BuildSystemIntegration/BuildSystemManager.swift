@@ -402,7 +402,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
       return nil
     }
     return targets.flatMap {
-      workspaceTargets.targets[$0]?.dependencies ?? []
+      workspaceTargets.targets[$0]?.dependents ?? []
     }
   }
 

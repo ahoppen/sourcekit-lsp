@@ -79,7 +79,7 @@ package actor TestBuildSystem: BuiltInBuildSystem {
 
   package func workspaceTargets(request: WorkspaceTargetsRequest) async -> WorkspaceTargetsResponse {
     return WorkspaceTargetsResponse(targets: [
-      ConfiguredTarget.dummy: WorkspaceTargetsResponse.TargetInfo(dependencies: [])
+      ConfiguredTarget.dummy: WorkspaceTargetsResponse.TargetInfo(dependents: [])
     ])
   }
 }

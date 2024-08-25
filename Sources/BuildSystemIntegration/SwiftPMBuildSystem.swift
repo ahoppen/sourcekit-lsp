@@ -196,7 +196,8 @@ package actor SwiftPMBuildSystem {
   /// greater depth.
   private var targets: [ConfiguredTarget: (buildTarget: SwiftBuildTarget, depth: Int)] = [:]
 
-  private var targetDependencies: [ConfiguredTarget: Set<ConfiguredTarget>] = [:]
+  /// Maps targets to the target that depends on it. Ie. this is an inverted `dependencies` list.
+  private var targetDependents: [ConfiguredTarget: Set<ConfiguredTarget>] = [:]
 
   static package func projectRoot(
     for path: TSCBasic.AbsolutePath,
@@ -435,7 +436,7 @@ extension SwiftPMBuildSystem {
 
     self.targets = [:]
     self.fileToTargets = [:]
-    self.targetDependencies = [:]
+    self.targetDependents = [:]
 
     buildDescription.traverseModules { buildTarget, parent, depth in
       let configuredTarget = ConfiguredTarget(buildTarget)
@@ -448,7 +449,7 @@ extension SwiftPMBuildSystem {
         }
       }
       if let parent {
-        self.targetDependencies[configuredTarget, default: []].insert(ConfiguredTarget(parent))
+        self.targetDependents[configuredTarget, default: []].insert(ConfiguredTarget(parent))
       }
       targets[configuredTarget] = (buildTarget, depth)
     }
@@ -806,8 +807,8 @@ extension SwiftPMBuildSystem: BuildSystemIntegration.BuiltInBuildSystem {
   }
 
   package func workspaceTargets(request: WorkspaceTargetsRequest) -> WorkspaceTargetsResponse {
-    let targets = self.targetDependencies.mapValues { dependencies in
-      WorkspaceTargetsResponse.TargetInfo(dependencies: Array(dependencies))
+    let targets = self.targetDependents.mapValues { dependents in
+      WorkspaceTargetsResponse.TargetInfo(dependents: Array(dependents))
     }
     return WorkspaceTargetsResponse(targets: targets)
   }

@@ -23,11 +23,11 @@ public struct WorkspaceTargetsRequest: RequestType, Hashable {
 
 public struct WorkspaceTargetsResponse: ResponseType {
   public struct TargetInfo: Sendable, Codable {
-    /// The direct (non-transitive) dependencies of `target`.
-    public var dependencies: [ConfiguredTarget]
+    /// The targets that depend on this target
+    public var dependents: [ConfiguredTarget]
 
-    public init(dependencies: [ConfiguredTarget]) {
-      self.dependencies = dependencies
+    public init(dependents: [ConfiguredTarget]) {
+      self.dependents = dependents
     }
   }
 
