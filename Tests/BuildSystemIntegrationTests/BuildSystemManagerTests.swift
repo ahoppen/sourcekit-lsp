@@ -48,6 +48,7 @@ final class BuildSystemManagerTests: XCTestCase {
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: nil,
       reloadPackageStatusCallback: { _ in }
     )
     await bsm.setMainFilesProvider(mainFiles)
@@ -102,17 +103,19 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFile() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
 
     await bs.setBuildSettings(for: a, to: BuildSettingsResponse(compilerArguments: ["x"]))
     await bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -129,17 +132,19 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFileInitialNil() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
 
     let changed = expectation(description: "changed settings")
@@ -151,17 +156,19 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFileWithFallback() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
     let fallbackSettings = await FallbackBuildSystem(options: .init()).buildSettings(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
@@ -189,17 +196,19 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
 
     await bs.setBuildSettings(for: cpp1, to: BuildSettingsResponse(compilerArguments: ["C++ 1"]))
     await bs.setBuildSettings(for: cpp2, to: BuildSettingsResponse(compilerArguments: ["C++ 2"]))
@@ -248,17 +257,19 @@ final class BuildSystemManagerTests: XCTestCase {
       ]
     )
 
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
 
     let cppArg = "C++ Main File"
     await bs.setBuildSettings(for: cpp, to: BuildSettingsResponse(compilerArguments: [cppArg, cpp.pseudoPath]))
@@ -290,17 +301,19 @@ final class BuildSystemManagerTests: XCTestCase {
     let b = try DocumentURI(string: "bsm:b.swift")
     let c = try DocumentURI(string: "bsm:c.swift")
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b], c: [c]])
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
 
     await bs.setBuildSettings(for: a, to: BuildSettingsResponse(compilerArguments: ["a"]))
     await bs.setBuildSettings(for: b, to: BuildSettingsResponse(compilerArguments: ["b"]))
@@ -332,17 +345,19 @@ final class BuildSystemManagerTests: XCTestCase {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
 
+    let del = await BSMDelegate()
     let bsm = await BuildSystemManager(
       buildSystemKind: .testBuildSystem(projectRoot: try AbsolutePath(validating: "/")),
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: SourceKitLSPOptions(),
       swiftpmTestHooks: SwiftPMTestHooks(),
+      delegate: del,
       reloadPackageStatusCallback: { _ in }
     )
+    await del.setBuildSystemManager(bsm)
     await bsm.setMainFilesProvider(mainFiles)
     let bs = try await unwrap(bsm.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
-    let del = await BSMDelegate(bsm)
 
     await bs.setBuildSettings(for: a, to: BuildSettingsResponse(compilerArguments: ["x"]))
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.compilerArguments, ["x"])
@@ -389,7 +404,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt
   )
 
-  unowned let bsm: BuildSystemManager
+  weak var bsm: BuildSystemManager?
   var expected: [ExpectedBuildSettingChangedCall] = []
 
   /// - Note: Needed to set `expected` outside of the actor's isolation context.
@@ -401,6 +416,10 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     self.expected = expected.map { ($0.uri, $0.language, $0.settings, $0.expectation, file, line) }
   }
 
+  func setBuildSystemManager(_ buildSystemManager: BuildSystemManager) {
+    bsm = buildSystemManager
+  }
+
   var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] =
     []
 
@@ -409,10 +428,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
     self.expectedDependenciesUpdate = expectedDependenciesUpdated
   }
 
-  init(_ bsm: BuildSystemManager) async {
-    self.bsm = bsm
-    await bsm.setDelegate(self)
-  }
+  init() async {}
 
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     for uri in changedFiles {
@@ -424,7 +440,7 @@ private actor BSMDelegate: BuildSystemManagerDelegate {
       self.expected.remove(at: expectedIndex)
 
       XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      let settings = await bsm.buildSettingsInferredFromMainFile(for: uri, language: expected.language)
+      let settings = await bsm?.buildSettingsInferredFromMainFile(for: uri, language: expected.language)
       XCTAssertEqual(settings, expected.settings, file: expected.file, line: expected.line)
       expected.expectation.fulfill()
     }

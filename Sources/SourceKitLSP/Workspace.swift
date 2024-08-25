@@ -145,6 +145,7 @@ package final class Workspace: Sendable {
     options: SourceKitLSPOptions,
     testHooks: TestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    buildSystemManagerDelegate: BuildSystemManagerDelegate,
     logMessageToIndexLog: @escaping @Sendable (_ taskID: IndexTaskID, _ message: String) -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
     indexProgressStatusDidChange: @Sendable @escaping () -> Void,
@@ -155,6 +156,7 @@ package final class Workspace: Sendable {
       toolchainRegistry: toolchainRegistry,
       options: options,
       swiftpmTestHooks: testHooks.swiftpmTestHooks,
+      delegate: buildSystemManagerDelegate,
       reloadPackageStatusCallback: reloadPackageStatusCallback
     )
     let buildSystem = await buildSystemManager.buildSystem?.underlyingBuildSystem

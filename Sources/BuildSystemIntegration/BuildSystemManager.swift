@@ -88,7 +88,7 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   private var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  private var delegate: BuildSystemManagerDelegate?
+  private weak var delegate: BuildSystemManagerDelegate?
 
   /// The list of toolchains that are available.
   ///
@@ -135,11 +135,13 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     swiftpmTestHooks: SwiftPMTestHooks,
+    delegate: BuildSystemManagerDelegate?,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async {
     self.fallbackBuildSystem = FallbackBuildSystem(options: options.fallbackBuildSystem)
     self.toolchainRegistry = toolchainRegistry
     self.projectRoot = buildSystemKind?.projectRoot
+    self.delegate = delegate
     self.buildSystem = await BuiltInBuildSystemAdapter(
       buildSystemKind: buildSystemKind,
       toolchainRegistry: toolchainRegistry,
@@ -197,11 +199,6 @@ package actor BuildSystemManager: BuiltInBuildSystemAdapterDelegate {
   /// - Important: Do not call directly.
   package nonisolated func handle<R: RequestType>(_ request: R) async throws -> R.Response {
     throw ResponseError.methodNotFound(R.method)
-  }
-
-  /// - Note: Needed so we can set the delegate from a different isolation context.
-  package func setDelegate(_ delegate: BuildSystemManagerDelegate?) {
-    self.delegate = delegate
   }
 
   /// Returns the toolchain that should be used to process the given document.

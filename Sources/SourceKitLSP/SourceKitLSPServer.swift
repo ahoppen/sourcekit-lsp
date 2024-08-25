@@ -971,6 +971,7 @@ extension SourceKitLSPServer {
       options: options,
       testHooks: testHooks,
       indexTaskScheduler: indexTaskScheduler,
+      buildSystemManagerDelegate: self,
       logMessageToIndexLog: { [weak self] taskID, message in
         self?.logMessageToIndexLog(taskID: taskID, message: message)
       },
@@ -1102,6 +1103,7 @@ extension SourceKitLSPServer {
           options: options,
           testHooks: testHooks,
           indexTaskScheduler: self.indexTaskScheduler,
+          buildSystemManagerDelegate: self,
           logMessageToIndexLog: { [weak self] taskID, message in
             self?.logMessageToIndexLog(taskID: taskID, message: message)
           },
@@ -1121,9 +1123,6 @@ extension SourceKitLSPServer {
     }.value
 
     assert(!self.workspaces.isEmpty)
-    for workspace in self.workspaces {
-      await workspace.buildSystemManager.setDelegate(self)
-    }
 
     return InitializeResult(
       capabilities: await self.serverCapabilities(
@@ -1342,9 +1341,6 @@ extension SourceKitLSPServer {
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
       workspace.closeIndex()
-
-      // Break retain cycle with the BSM.
-      await workspace.buildSystemManager.setDelegate(nil)
     }
   }
 
@@ -1542,9 +1538,6 @@ extension SourceKitLSPServer {
               buildSystemKind: determineBuildSystem(forWorkspaceFolder: workspaceFolder.uri, options: self.options)
             )
           }
-        }
-        for workspace in newWorkspaces {
-          await workspace.buildSystemManager.setDelegate(self)
         }
         self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
       }

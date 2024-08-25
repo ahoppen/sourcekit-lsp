@@ -39,11 +39,6 @@ final class BuildSystemTests: XCTestCase {
   /// - Note: Set before each test run in `setUp`.
   private var buildSystem: TestBuildSystem! = nil
 
-  /// Whether clangd exists in the toolchain.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var haveClangd: Bool = false
-
   override func setUp() async throws {
     testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
 
@@ -54,6 +49,7 @@ final class BuildSystemTests: XCTestCase {
       toolchainRegistry: .forTesting,
       options: .testDefault(),
       swiftpmTestHooks: .init(),
+      delegate: server,
       reloadPackageStatusCallback: { _ in }
     )
     buildSystem = try await unwrap(buildSystemManager.buildSystem?.underlyingBuildSystem as? TestBuildSystem)
@@ -66,7 +62,6 @@ final class BuildSystemTests: XCTestCase {
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
-    await workspace.buildSystemManager.setDelegate(server)
   }
 
   override func tearDown() {
@@ -78,8 +73,6 @@ final class BuildSystemTests: XCTestCase {
   // MARK: - Tests
 
   func testClangdDocumentUpdatedBuildSettings() async throws {
-    guard haveClangd else { return }
-
     let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
