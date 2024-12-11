@@ -68,10 +68,9 @@ package struct ReduceCommand: AsyncParsableCommand {
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
-        return Toolchain(try AbsolutePath(validating: toolchainOverride))
+        return Toolchain(URL(fileURLWithPath: toolchainOverride))
       }
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-      return await ToolchainRegistry(installPath: installPath).default
+      return await ToolchainRegistry(installPath: Bundle.main.bundleURL).default
     }
   }
 
