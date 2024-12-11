@@ -97,7 +97,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
+      let installPath = Bundle.main.bundleURL
       return ToolchainRegistry(installPath: installPath)
     }
   }
@@ -106,7 +106,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
-        return Toolchain(try AbsolutePath(validating: toolchainOverride))
+        return Toolchain(URL(fileURLWithPath: toolchainOverride))
       }
       return try await toolchainRegistry.default
     }
@@ -178,7 +178,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-      guard let toolchain = try Toolchain(AbsolutePath(validating: toolchainPath.filePath)),
+      guard let toolchain = Toolchain(toolchainPath),
         let sourcekitd = toolchain.sourcekitd
       else {
         continue

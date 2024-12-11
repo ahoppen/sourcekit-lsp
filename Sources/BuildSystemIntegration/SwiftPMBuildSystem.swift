@@ -270,7 +270,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
         FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
       }
     let toolchain = await toolchainRegistry.preferredToolchain(containing: [
-      \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
+      \.clang, \.clangd
     ])
     guard let toolchain else {
       throw Error.cannotDetermineHostToolchain

@@ -10,18 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import RegexBuilder
 import SKLogging
 import SwiftExtensions
 
 #if compiler(>=6)
+package import Foundation
 import enum PackageLoading.Platform
 package import struct TSCBasic.AbsolutePath
 package import protocol TSCBasic.FileSystem
 package import class TSCBasic.Process
 package import var TSCBasic.localFileSystem
 #else
+import Foundation
 import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
@@ -221,66 +222,70 @@ extension Toolchain {
   ///
   /// If `path` contains an ".xctoolchain", we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
-  convenience package init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
+  convenience package init?(_ path: URL) {
     // Properties that need to be initialized
     let identifier: String
     let displayName: String
-    let toolchainPath: AbsolutePath?
+    let toolchainPath: URL?
     var clang: AbsolutePath? = nil
     var clangd: AbsolutePath? = nil
     var swift: AbsolutePath? = nil
     var swiftc: AbsolutePath? = nil
     var swiftFormat: AbsolutePath? = nil
     var sourcekitd: AbsolutePath? = nil
-    var libIndexStore: AbsolutePath? = nil
+    var libIndexStore: URL? = nil
 
-    if let (infoPlist, xctoolchainPath) = containingXCToolchain(path, fileSystem) {
+    if let (infoPlist, xctoolchainPath) = containingXCToolchain(path) {
       identifier = infoPlist.identifier
-      displayName = infoPlist.displayName ?? xctoolchainPath.basenameWithoutExt
+      displayName = infoPlist.displayName ?? xctoolchainPath.deletingPathExtension().lastPathComponent
       toolchainPath = xctoolchainPath
     } else {
-      identifier = path.pathString
-      displayName = path.basename
+      identifier = (try? path.filePath) ?? path.path
+      displayName = path.lastPathComponent
       toolchainPath = path
     }
 
     // Find tools in the toolchain
 
     var foundAny = false
-    let searchPaths = [path, path.appending(components: "bin"), path.appending(components: "usr", "bin")]
+    let searchPaths = [
+      path, path.appendingPathComponent("bin"), path.appendingPathComponent("usr").appendingPathComponent("bin"),
+    ]
     for binPath in searchPaths {
-      let libPath = binPath.parentDirectory.appending(component: "lib")
+      let libPath = binPath.deletingLastPathComponent().appendingPathComponent("lib")
 
-      guard fileSystem.isDirectory(binPath) || fileSystem.isDirectory(libPath) else { continue }
+      guard FileManager.default.isDirectory(at: binPath) || FileManager.default.isDirectory(at: libPath) else {
+        continue
+      }
 
       let execExt = Platform.current?.executableExtension ?? ""
 
-      let clangPath = binPath.appending(component: "clang\(execExt)")
-      if fileSystem.isExecutableFile(clangPath) {
-        clang = clangPath
+      let clangPath = binPath.appendingPathComponent("clang\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: clangPath.path) {
+        clang = try! AbsolutePath(validating: clangPath.path)
         foundAny = true
       }
-      let clangdPath = binPath.appending(component: "clangd\(execExt)")
-      if fileSystem.isExecutableFile(clangdPath) {
-        clangd = clangdPath
-        foundAny = true
-      }
-
-      let swiftPath = binPath.appending(component: "swift\(execExt)")
-      if fileSystem.isExecutableFile(swiftPath) {
-        swift = swiftPath
+      let clangdPath = binPath.appendingPathComponent("clangd\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: clangdPath.path) {
+        clangd = try! AbsolutePath(validating: clangdPath.path)
         foundAny = true
       }
 
-      let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
-      if fileSystem.isExecutableFile(swiftcPath) {
-        swiftc = swiftcPath
+      let swiftPath = binPath.appendingPathComponent("swift\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: swiftPath.path) {
+        swift = try! AbsolutePath(validating: swiftPath.filePath)
         foundAny = true
       }
 
-      let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
-      if fileSystem.isExecutableFile(swiftFormatPath) {
-        swiftFormat = swiftFormatPath
+      let swiftcPath = binPath.appendingPathComponent("swiftc\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: swiftcPath.path) {
+        swiftc = try! AbsolutePath(validating: swiftcPath.filePath)
+        foundAny = true
+      }
+
+      let swiftFormatPath = binPath.appendingPathComponent("swift-format\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: swiftFormatPath.path) {
+        swiftFormat = try! AbsolutePath(validating: swiftFormatPath.filePath)
         foundAny = true
       }
 
@@ -293,28 +298,28 @@ extension Toolchain {
         dylibExt = ".so"
       }
 
-      let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
-      if fileSystem.isFile(sourcekitdPath) {
-        sourcekitd = sourcekitdPath
+      let sourcekitdPath = libPath.appendingPathComponent("sourcekitd.framework").appendingPathComponent("sourcekitd")
+      if FileManager.default.isFile(at: sourcekitdPath) {
+        sourcekitd = try! AbsolutePath(validating: sourcekitdPath.filePath)
         foundAny = true
       } else {
         #if os(Windows)
-        let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
+        let sourcekitdPath = binPath.appendingPathComponent("sourcekitdInProc\(dylibExt)")
         #else
-        let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
+        let sourcekitdPath = libPath.appendingPathComponent("libsourcekitdInProc\(dylibExt)")
         #endif
-        if fileSystem.isFile(sourcekitdPath) {
-          sourcekitd = sourcekitdPath
+        if FileManager.default.isFile(at: sourcekitdPath) {
+          sourcekitd = try! AbsolutePath(validating: sourcekitdPath.filePath)
           foundAny = true
         }
       }
 
       #if os(Windows)
-      let libIndexStorePath = binPath.appending(components: "libIndexStore\(dylibExt)")
+      let libIndexStorePath = binPath.appendingPathComponent("libIndexStore\(dylibExt)")
       #else
-      let libIndexStorePath = libPath.appending(components: "libIndexStore\(dylibExt)")
+      let libIndexStorePath = libPath.appendingPathComponent("libIndexStore\(dylibExt)")
       #endif
-      if fileSystem.isFile(libIndexStorePath) {
+      if FileManager.default.isFile(at: libIndexStorePath) {
         libIndexStore = libIndexStorePath
         foundAny = true
       }
@@ -330,32 +335,31 @@ extension Toolchain {
     self.init(
       identifier: identifier,
       displayName: displayName,
-      path: toolchainPath,
+      path: try! (toolchainPath?.filePath).map { try! AbsolutePath(validating: $0) },
       clang: clang,
       swift: swift,
       swiftc: swiftc,
       swiftFormat: swiftFormat,
       clangd: clangd,
       sourcekitd: sourcekitd,
-      libIndexStore: libIndexStore
+      libIndexStore: try! (libIndexStore?.filePath).map { try! AbsolutePath(validating: $0) }
     )
   }
 }
 
 /// Find a containing xctoolchain with plist, if available.
 func containingXCToolchain(
-  _ path: AbsolutePath,
-  _ fileSystem: FileSystem
-) -> (XCToolchainPlist, AbsolutePath)? {
+  _ path: URL
+) -> (XCToolchainPlist, URL)? {
   var path = path
   while !path.isRoot {
-    if path.extension == "xctoolchain" {
-      if let infoPlist = orLog("", { try XCToolchainPlist(fromDirectory: path, fileSystem) }) {
+    if path.pathExtension == "xctoolchain" {
+      if let infoPlist = orLog("", { try XCToolchainPlist(fromDirectory: path) }) {
         return (infoPlist, path)
       }
       return nil
     }
-    path = path.parentDirectory
+    path = path.deletingLastPathComponent()
   }
   return nil
 }

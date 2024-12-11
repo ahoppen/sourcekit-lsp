@@ -105,7 +105,7 @@ package struct IndexCommand: AsyncParsableCommand {
     )
 
     let installPath =
-      if let toolchainOverride, let toolchain = Toolchain(try AbsolutePath(validating: toolchainOverride)) {
+      if let toolchainOverride, let toolchain = Toolchain(URL(fileURLWithPath: toolchainOverride)) {
         toolchain.path
       } else {
         try AbsolutePath(validating: Bundle.main.bundlePath)
