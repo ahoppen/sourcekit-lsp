@@ -61,7 +61,7 @@ package struct RunSourceKitdRequestCommand: AsyncParsableCommand {
     let sourcekitdPath =
       if let sourcekitdPath {
         sourcekitdPath
-      } else if let path = await ToolchainRegistry(installPath: installPath).default?.sourcekitd?.pathString {
+      } else if let path = await ToolchainRegistry(installPath: installPath.asURL).default?.sourcekitd?.pathString {
         path
       } else {
         print("Did not find sourcekitd in the toolchain. Specify path to sourcekitd manually by passing --sourcekitd")

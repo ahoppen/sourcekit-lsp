@@ -149,15 +149,13 @@ package final actor ToolchainRegistry {
   /// * (Darwin) `[~]/Library/Developer/Toolchains`
   /// * `env SOURCEKIT_PATH, PATH`
   package init(
-    installPath absoluteInstallPath: AbsolutePath? = nil,
+    installPath: URL? = nil,
     environmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_TOOLCHAIN_PATH"],
     xcodes: [URL] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
     libraryDirectories: [URL] = FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask),
     pathEnvironmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_PATH", "PATH", "Path"],
-    darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"],
+    darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"]
   ) {
-    let installPath = absoluteInstallPath?.asURL
-
     // The paths at which we have found toolchains
     var toolchainPaths: [(path: URL, reason: ToolchainRegisterReason)] = []
 
