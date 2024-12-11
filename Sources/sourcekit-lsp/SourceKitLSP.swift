@@ -333,8 +333,6 @@ struct SourceKitLSP: AsyncParsableCommand {
       outFD: realStdoutHandle
     )
 
-    let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-
     var inputMirror: FileHandle? = nil
     if let inputMirrorDirectory = globalConfigurationOptions.loggingOrDefault.inputMirrorDirectory {
       orLog("Setting up input mirror") {
@@ -355,7 +353,7 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let server = SourceKitLSPServer(
       client: clientConnection,
-      toolchainRegistry: ToolchainRegistry(installPath: installPath.asURL),
+      toolchainRegistry: ToolchainRegistry(installPath: Bundle.main.bundleURL),
       options: globalConfigurationOptions,
       testHooks: TestHooks(),
       onExit: {

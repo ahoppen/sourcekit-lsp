@@ -97,8 +97,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-      return ToolchainRegistry(installPath: installPath.asURL)
+      let installPath = Bundle.main.bundleURL
+      return ToolchainRegistry(installPath: installPath)
     }
   }
 
