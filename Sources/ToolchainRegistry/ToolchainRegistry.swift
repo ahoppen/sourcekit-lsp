@@ -11,21 +11,22 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import Foundation
 import LanguageServerProtocolExtensions
+import SwiftExtensions
 import TSCExtensions
 
 #if compiler(>=6)
 package import struct TSCBasic.AbsolutePath
 package import protocol TSCBasic.FileSystem
+package import Foundation
 package import class TSCBasic.Process
 package import enum TSCBasic.ProcessEnv
 package import struct TSCBasic.ProcessEnvironmentKey
 package import func TSCBasic.getEnvSearchPaths
 package import var TSCBasic.localFileSystem
 #else
+import Foundation
 import struct TSCBasic.AbsolutePath
-import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessEnvironmentKey
@@ -137,7 +138,7 @@ package final actor ToolchainRegistry {
   /// installations but not next to the `sourcekit-lsp` binary because there is no `sourcekit-lsp` binary during
   /// testing.
   package static var forTesting: ToolchainRegistry {
-    ToolchainRegistry(localFileSystem)
+    ToolchainRegistry()
   }
 
   /// Creates a toolchain registry populated by scanning for toolchains according to the given paths
@@ -152,59 +153,61 @@ package final actor ToolchainRegistry {
   package init(
     installPath: AbsolutePath? = nil,
     environmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_TOOLCHAIN_PATH"],
-    xcodes: [AbsolutePath] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
+    xcodes: [URL] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
+    libraryDirectories: [URL] = FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask),
+    pathEnvironmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_PATH", "PATH", "Path"],
     darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"],
     _ fileSystem: FileSystem = localFileSystem
   ) {
     // The paths at which we have found toolchains
-    var toolchainPaths: [(path: AbsolutePath, reason: ToolchainRegisterReason)] = []
+    var toolchainPaths: [(path: URL, reason: ToolchainRegisterReason)] = []
 
     // Scan for toolchains in the paths given by `environmentVariables`.
     for envVar in environmentVariables {
-      if let pathStr = ProcessEnv.block[envVar], let path = try? AbsolutePath(validating: pathStr) {
-        toolchainPaths.append((path, .sourcekitToolchainEnvironmentVariable))
+      if let pathStr = ProcessEnv.block[envVar] {
+        toolchainPaths.append((URL(fileURLWithPath: pathStr), .sourcekitToolchainEnvironmentVariable))
       }
     }
 
     // Search for toolchains relative to the path at which sourcekit-lsp is installed.
     if let installPath = installPath {
-      toolchainPaths.append((installPath, .relativeToInstallPath))
+      toolchainPaths.append((installPath.asURL, .relativeToInstallPath))
     }
 
     // Search for toolchains in the Xcode developer directories and global toolchain install paths
-    let toolchainSearchPaths =
+    var toolchainSearchPaths =
       xcodes.map {
-        if $0.extension == "app" {
-          return $0.appending(components: "Contents", "Developer", "Toolchains")
+        if $0.pathExtension == "app" {
+          return $0.appendingPathComponent("Contents").appendingPathComponent("Developer").appendingPathComponent(
+            "Toolchains"
+          )
         } else {
-          return $0.appending(component: "Toolchains")
+          return $0.appendingPathComponent("Toolchains")
         }
       }
-      + FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask).compactMap {
-        AbsolutePath(validatingOrNil: $0.appendingPathComponent("Developer").appendingPathComponent("Toolchains").path)
-      }
+    toolchainSearchPaths += libraryDirectories.compactMap {
+      $0.appendingPathComponent("Developer").appendingPathComponent("Toolchains")
+    }
 
     for xctoolchainSearchPath in toolchainSearchPaths {
-      guard let direntries = try? fileSystem.getDirectoryContents(xctoolchainSearchPath) else {
-        continue
-      }
-      for name in direntries {
-        let path = xctoolchainSearchPath.appending(component: name)
-        if path.extension == "xctoolchain" {
-          toolchainPaths.append((path, .xcode))
+      let entries =
+        (try? FileManager.default.contentsOfDirectory(at: xctoolchainSearchPath, includingPropertiesForKeys: nil)) ?? []
+      for entry in entries {
+        if entry.pathExtension == "xctoolchain" {
+          toolchainPaths.append((entry, .xcode))
         }
       }
     }
 
     // Scan for toolchains by the given PATH-like environment variables.
-    for envVar: ProcessEnvironmentKey in ["SOURCEKIT_PATH", "PATH", "Path"] {
+    for envVar: ProcessEnvironmentKey in pathEnvironmentVariables {
       for path in getEnvSearchPaths(pathString: ProcessEnv.block[envVar], currentWorkingDirectory: nil) {
-        toolchainPaths.append((path, .pathEnvironmentVariable))
+        toolchainPaths.append((path.asURL, .pathEnvironmentVariable))
       }
     }
 
     let toolchainsAndReasons = toolchainPaths.compactMap {
-      if let toolchain = Toolchain($0.path, fileSystem) {
+      if let toolchain = Toolchain(try! AbsolutePath(validating: $0.path.filePath)) {
         return (toolchain, $0.reason)
       }
       return nil
@@ -253,6 +256,20 @@ package final actor ToolchainRegistry {
   }
 
   /// Returns the preferred toolchain that contains all the tools at the given key paths.
+  package func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, URL?>]) -> Toolchain? {
+    if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
+      return toolchain
+    }
+
+    for toolchain in toolchains {
+      if requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
+        return toolchain
+      }
+    }
+
+    return nil
+  }
+
   package func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, AbsolutePath?>]) -> Toolchain? {
     if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
       return toolchain
@@ -281,8 +298,8 @@ extension ToolchainRegistry {
 
 extension ToolchainRegistry {
   /// The path of the current Xcode.app/Contents/Developer.
-  package static var _currentXcodeDeveloperPath: AbsolutePath? {
+  package static var _currentXcodeDeveloperPath: URL? {
     guard let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p") else { return nil }
-    return try? AbsolutePath(validating: str.trimmingCharacters(in: .whitespacesAndNewlines))
+    return URL(fileURLWithPath: str.trimmingCharacters(in: .whitespacesAndNewlines))
   }
 }
