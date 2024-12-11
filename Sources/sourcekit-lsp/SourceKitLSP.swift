@@ -355,7 +355,7 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let server = SourceKitLSPServer(
       client: clientConnection,
-      toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
+      toolchainRegistry: ToolchainRegistry(installPath: installPath),
       options: globalConfigurationOptions,
       testHooks: TestHooks(),
       onExit: {

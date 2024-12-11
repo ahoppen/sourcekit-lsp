@@ -23,7 +23,6 @@ package import class TSCBasic.Process
 package import enum TSCBasic.ProcessEnv
 package import struct TSCBasic.ProcessEnvironmentKey
 package import func TSCBasic.getEnvSearchPaths
-package import var TSCBasic.localFileSystem
 #else
 import Foundation
 import struct TSCBasic.AbsolutePath
@@ -31,7 +30,6 @@ import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessEnvironmentKey
 import func TSCBasic.getEnvSearchPaths
-package import var TSCBasic.localFileSystem
 #endif
 
 /// Set of known toolchains.
@@ -157,7 +155,6 @@ package final actor ToolchainRegistry {
     libraryDirectories: [URL] = FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask),
     pathEnvironmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_PATH", "PATH", "Path"],
     darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"],
-    _ fileSystem: FileSystem = localFileSystem
   ) {
     let installPath = absoluteInstallPath?.asURL
 
