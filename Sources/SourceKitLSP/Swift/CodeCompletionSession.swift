@@ -305,44 +305,45 @@ class CodeCompletionSession {
   // MARK: - Helpers
 
   private func expandClosurePlaceholders(insertText: String) -> String? {
-    guard insertText.contains("<#") && insertText.contains("->") else {
-      // Fast path: There is no closure placeholder to expand
-      return nil
-    }
+    return nil
+    // guard insertText.contains("<#") && insertText.contains("->") else {
+    //   // Fast path: There is no closure placeholder to expand
+    //   return nil
+    // }
 
-    let strippedPrefix: String
-    let exprToExpand: String
-    if insertText.starts(with: "?.") {
-      strippedPrefix = "?."
-      exprToExpand = String(insertText.dropFirst(2))
-    } else {
-      strippedPrefix = ""
-      exprToExpand = insertText
-    }
+    // let strippedPrefix: String
+    // let exprToExpand: String
+    // if insertText.starts(with: "?.") {
+    //   strippedPrefix = "?."
+    //   exprToExpand = String(insertText.dropFirst(2))
+    // } else {
+    //   strippedPrefix = ""
+    //   exprToExpand = insertText
+    // }
 
-    var parser = Parser(exprToExpand)
-    let expr = ExprSyntax.parse(from: &parser)
-    guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
-      let expandedCall = ExpandEditorPlaceholdersToTrailingClosures.refactor(
-        syntax: call,
-        in: ExpandEditorPlaceholdersToTrailingClosures.Context(indentationWidth: indentationWidth)
-      )
-    else {
-      return nil
-    }
+    // var parser = Parser(exprToExpand)
+    // let expr = ExprSyntax.parse(from: &parser)
+    // guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
+    //   let expandedCall = ExpandEditorPlaceholdersToTrailingClosures.refactor(
+    //     syntax: call,
+    //     in: ExpandEditorPlaceholdersToTrailingClosures.Context(indentationWidth: indentationWidth)
+    //   )
+    // else {
+    //   return nil
+    // }
 
-    let bytesToExpand = Array(exprToExpand.utf8)
+    // let bytesToExpand = Array(exprToExpand.utf8)
 
-    var expandedBytes: [UInt8] = []
-    // Add the prefix that we stripped of to allow expression parsing
-    expandedBytes += strippedPrefix.utf8
-    // Add any part of the expression that didn't end up being part of the function call
-    expandedBytes += bytesToExpand[0..<call.position.utf8Offset]
-    // Add the expanded function call excluding the added `indentationOfLine`
-    expandedBytes += expandedCall.syntaxTextBytes
-    // Add any trailing text that didn't end up being part of the function call
-    expandedBytes += bytesToExpand[call.endPosition.utf8Offset...]
-    return String(bytes: expandedBytes, encoding: .utf8)
+    // var expandedBytes: [UInt8] = []
+    // // Add the prefix that we stripped of to allow expression parsing
+    // expandedBytes += strippedPrefix.utf8
+    // // Add any part of the expression that didn't end up being part of the function call
+    // expandedBytes += bytesToExpand[0..<call.position.utf8Offset]
+    // // Add the expanded function call excluding the added `indentationOfLine`
+    // expandedBytes += expandedCall.syntaxTextBytes
+    // // Add any trailing text that didn't end up being part of the function call
+    // expandedBytes += bytesToExpand[call.endPosition.utf8Offset...]
+    // return String(bytes: expandedBytes, encoding: .utf8)
   }
 
   private func completionsFromSKDResponse(

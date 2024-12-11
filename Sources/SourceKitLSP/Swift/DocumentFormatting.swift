@@ -15,6 +15,7 @@ import Foundation
 package import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions
@@ -27,6 +28,7 @@ import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolExtensions
 import SKLogging
+import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import TSCExtensions

@@ -232,7 +232,7 @@ package final class Workspace: Sendable, BuildSystemManagerDelegate {
     )
 
     logger.log(
-      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.pathString ?? "<nil>")"
+      "Created workspace at \(rootUri.forLogging) with project root \(buildSystemSpec?.projectRoot.description ?? "<nil>")"
     )
 
     var index: IndexStoreDB? = nil

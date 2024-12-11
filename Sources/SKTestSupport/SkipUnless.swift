@@ -477,8 +477,8 @@ package actor SkipUnless {
       let swiftFrontend = try await unwrap(ToolchainRegistry.forTesting.default?.swift).parentDirectory
         .appending(component: "swift-frontend")
       return try await withTestScratchDir { scratchDirectory in
-        let input = scratchDirectory.appending(component: "Input.swift")
-        guard FileManager.default.createFile(atPath: input.pathString, contents: nil) else {
+        let input = scratchDirectory.appendingPathComponent("Input.swift")
+        guard FileManager.default.createFile(atPath: input.path, contents: nil) else {
           struct FailedToCrateInputFileError: Error {}
           throw FailedToCrateInputFileError()
         }
@@ -486,7 +486,7 @@ package actor SkipUnless {
         let process = Process(
           args: swiftFrontend.pathString,
           "-typecheck",
-          input.pathString,
+          try input.filePath,
           "-triple",
           "wasm32-unknown-none-wasm",
           "-enable-experimental-feature",

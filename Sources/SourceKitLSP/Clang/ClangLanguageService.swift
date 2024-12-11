@@ -143,7 +143,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     else {
       return nil
     }
-    return ClangBuildSettings(settings, clangPath: clangdPath)
+    return ClangBuildSettings(settings, clangPath: clangdPath.asURL)
   }
 
   nonisolated func canHandle(workspace: Workspace) -> Bool {
@@ -459,9 +459,7 @@ extension ClangLanguageService {
     let clangBuildSettings = await self.buildSettings(for: uri, fallbackAfterTimeout: false)
 
     // The compile command changed, send over the new one.
-    if let compileCommand = clangBuildSettings?.compileCommand,
-      let pathString = AbsolutePath(validatingOrNil: try? url.filePath)?.pathString
-    {
+    if let compileCommand = clangBuildSettings?.compileCommand, let pathString = try? url.filePath {
       let notification = DidChangeConfigurationNotification(
         settings: .clangd(ClangWorkspaceSettings(compilationDatabaseChanges: [pathString: compileCommand]))
       )
@@ -644,8 +642,8 @@ private struct ClangBuildSettings: Equatable {
   /// fallback arguments and represent the file state differently.
   package let isFallback: Bool
 
-  package init(_ settings: FileBuildSettings, clangPath: AbsolutePath?) {
-    var arguments = [clangPath?.pathString ?? "clang"] + settings.compilerArguments
+  package init(_ settings: FileBuildSettings, clangPath: URL?) {
+    var arguments = [(try? clangPath?.filePath) ?? "clang"] + settings.compilerArguments
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
       arguments.append(contentsOf: [

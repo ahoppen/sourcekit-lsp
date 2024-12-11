@@ -15,6 +15,7 @@ package import ArgumentParser
 import Csourcekitd
 import Foundation
 import SKUtilities
+import SwiftExtensions
 import SourceKitD
 import ToolchainRegistry
 
@@ -25,6 +26,7 @@ import Csourcekitd
 import Foundation
 import SKUtilities
 import SourceKitD
+import SwiftExtensions
 import ToolchainRegistry
 
 import struct TSCBasic.AbsolutePath
