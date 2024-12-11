@@ -31,7 +31,7 @@ import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
 import struct TSCBasic.ProcessEnvironmentKey
 import func TSCBasic.getEnvSearchPaths
-import var TSCBasic.localFileSystem
+package import var TSCBasic.localFileSystem
 #endif
 
 /// Set of known toolchains.
@@ -151,7 +151,7 @@ package final actor ToolchainRegistry {
   /// * (Darwin) `[~]/Library/Developer/Toolchains`
   /// * `env SOURCEKIT_PATH, PATH`
   package init(
-    installPath: AbsolutePath? = nil,
+    installPath absoluteInstallPath: AbsolutePath? = nil,
     environmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_TOOLCHAIN_PATH"],
     xcodes: [URL] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
     libraryDirectories: [URL] = FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask),
@@ -159,6 +159,8 @@ package final actor ToolchainRegistry {
     darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"],
     _ fileSystem: FileSystem = localFileSystem
   ) {
+    let installPath = absoluteInstallPath?.asURL
+
     // The paths at which we have found toolchains
     var toolchainPaths: [(path: URL, reason: ToolchainRegisterReason)] = []
 
@@ -171,7 +173,7 @@ package final actor ToolchainRegistry {
 
     // Search for toolchains relative to the path at which sourcekit-lsp is installed.
     if let installPath = installPath {
-      toolchainPaths.append((installPath.asURL, .relativeToInstallPath))
+      toolchainPaths.append((installPath, .relativeToInstallPath))
     }
 
     // Search for toolchains in the Xcode developer directories and global toolchain install paths
