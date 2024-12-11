@@ -23,8 +23,7 @@ package import SwiftExtensions
 package import ToolchainRegistry
 import TSCExtensions
 
-package import struct TSCBasic.AbsolutePath
-package import struct TSCBasic.RelativePath
+import struct TSCBasic.RelativePath
 #else
 import BuildServerProtocol
 import Dispatch
@@ -38,7 +37,6 @@ import SwiftExtensions
 import ToolchainRegistry
 import TSCExtensions
 
-import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 #endif
 
@@ -608,7 +606,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
     in target: BuildTargetIdentifier?,
     language: Language
   ) async -> Toolchain? {
-    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> AbsolutePath? in
+    let toolchainPath = await orLog("Getting toolchain from build targets") { () -> URL? in
       guard let target else {
         return nil
       }
@@ -624,7 +622,7 @@ package actor BuildSystemManager: QueueBasedMessageHandler {
         logger.error("Toolchain is not a file URL")
         return nil
       }
-      return try AbsolutePath(validating: toolchainUrl.filePath)
+      return toolchainUrl
     }
     if let toolchainPath {
       if let toolchain = await self.toolchainRegistry.toolchain(withPath: toolchainPath) {

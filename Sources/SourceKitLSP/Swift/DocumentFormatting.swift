@@ -170,7 +170,7 @@ extension SwiftLanguageService {
     }
 
     var args = try [
-      swiftFormat.pathString,
+      swiftFormat.filePath,
       "format",
       "--configuration",
       swiftFormatConfiguration(for: textDocument.uri, options: options),

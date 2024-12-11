@@ -280,11 +280,11 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     self.testHooks = testHooks
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
-    guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
+    guard let destinationToolchainBinDir = toolchain.swiftc?.deletingLastPathComponent() else {
       throw Error.cannotDetermineHostToolchain
     }
 
-    let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
+    let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
 
     let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
@@ -645,7 +645,7 @@ package actor SwiftPMBuildSystem: BuiltInBuildSystem {
     }
     logger.debug("Preparing '\(target.forLogging)' using \(self.toolchain.identifier)")
     var arguments = [
-      try swift.pathString, "build",
+      try swift.filePath, "build",
       "--package-path", try projectRoot.filePath,
       "--scratch-path", self.swiftPMWorkspace.location.scratchDirectory.pathString,
       "--disable-index-store",

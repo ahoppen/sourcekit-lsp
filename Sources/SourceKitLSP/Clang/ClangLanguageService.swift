@@ -22,8 +22,6 @@ import SwiftSyntax
 import TSCExtensions
 import ToolchainRegistry
 
-import struct TSCBasic.AbsolutePath
-
 #if os(Windows)
 import WinSDK
 #endif
@@ -59,10 +57,10 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   var capabilities: ServerCapabilities? = nil
 
   /// Path to the clang binary.
-  let clangPath: AbsolutePath?
+  let clangPath: URL?
 
   /// Path to the `clangd` binary.
-  let clangdPath: AbsolutePath
+  let clangdPath: URL
 
   let clangdOptions: [String]
 
@@ -178,7 +176,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     openDocuments = [:]
 
     let (connectionToClangd, process) = try JSONRPCConnection.start(
-      executable: clangdPath.asURL,
+      executable: clangdPath,
       arguments: [
         "-compile_args_from=lsp",  // Provide compiler args programmatically.
         "-background-index=false",  // Disable clangd indexing, we use the build
