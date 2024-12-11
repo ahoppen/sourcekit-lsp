@@ -12,7 +12,7 @@
 
 #if compiler(>=6)
 package import Csourcekitd
-import Foundation
+package import Foundation
 import SKLogging
 import SwiftExtensions
 
