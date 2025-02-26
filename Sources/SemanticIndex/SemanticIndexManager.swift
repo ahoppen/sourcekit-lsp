@@ -262,10 +262,22 @@ package final actor SemanticIndexManager {
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
-  private func scheduleBackgroundIndex(
-    files: some Collection<DocumentURI> & Sendable,
-    indexFilesWithUpToDateUnit: Bool
-  ) async {
+  package func scheduleBackgroundIndex(files: [DocumentURI], indexFilesWithUpToDateUnit: Bool) async {
+    var files = files
+    if !indexFilesWithUpToDateUnit {
+      let index = index.checked(for: .modifiedFiles)
+      files = files.filter {
+        if index.hasUpToDateUnit(for: $0) {
+          return false
+        }
+        if case .waitingForPreparation = inProgressIndexTasks[$0] {
+          // We haven't started preparing the file yet. Scheduling a new index operation for it won't produce any
+          // more recent results.
+          return false
+        }
+        return true
+      }
+    }
     _ = await self.scheduleIndexing(of: files, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit, priority: .low)
   }
 
@@ -295,7 +307,7 @@ package final actor SemanticIndexManager {
         await hooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
-        var filesToIndex: [DocumentURI] =
+        let filesToIndex: [DocumentURI] =
           if let filesToIndex {
             filesToIndex
           } else {
@@ -304,20 +316,6 @@ package final actor SemanticIndexManager {
                 .sorted { $0.stringValue < $1.stringValue }
             } ?? []
           }
-        if !indexFilesWithUpToDateUnit {
-          let index = index.checked(for: .modifiedFiles)
-          filesToIndex = filesToIndex.filter {
-            if index.hasUpToDateUnit(for: $0) {
-              return false
-            }
-            if case .waitingForPreparation = inProgressIndexTasks[$0] {
-              // We haven't started preparing the file yet. Scheduling a new index operation for it won't produce any
-              // more recent results.
-              return false
-            }
-            return true
-          }
-        }
         await scheduleBackgroundIndex(files: filesToIndex, indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit)
         scheduleIndexingTasks[taskId] = nil
       }
