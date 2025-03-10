@@ -62,12 +62,16 @@ package class Cache<Key: Sendable & Hashable, Result: Sendable> {
   package func clear(isolation: isolated any Actor, where condition: (Key) -> Bool) {
     for key in storage.keys {
       if condition(key) {
+        storage[key]?.cancel()
         storage[key] = nil
       }
     }
   }
 
   package func clearAll(isolation: isolated any Actor) {
+    for task in storage.values {
+      task.cancel()
+    }
     storage.removeAll()
   }
 }
